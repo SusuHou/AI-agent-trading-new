@@ -144,3 +144,52 @@ Numba backend. The plans and resume/HPC worker are ready, but launching all
 acceleration decision. / 当前限制：已验证的市场 kernel 仍是纯 Python，没有
 Numba 后端。计划、续跑与 HPC worker 已接通，但启动全部 2,000 个任务前，必须先
 在目标超算测量吞吐量并决定加速方案。
+
+## Step 36G Narval throughput benchmark / 第 36G 步 Narval 吞吐率测试
+
+Step 36G measures the **same formal training entrypoint** on one scheduled
+Narval CPU before we choose wall time, chunk size, or whether acceleration is
+necessary. The Python tool defaults to a 1,000-period warm-up and 10,000-period
+measured resume. The first 30-minute Slurm pilot explicitly uses a conservative
+25+250 periods per cell; after observing Narval speed, we can request suitable
+wall time and repeat with a longer sample. Low and high noise are launched in
+separate Python processes. / 第 36G 步在一颗由 Slurm 分配的 Narval CPU 上测量
+**同一个正式训练入口**，然后我们才决定 wall time、每个 chunk 多长，以及是否必须
+加速。Python 工具默认预热 1,000 期并续跑计时 10,000 期；首次 30 分钟 Slurm
+pilot 明确使用保守的每个 cell `25+250` 期。看到 Narval 实测速度后，再申请合适的
+wall time 并扩大样本。低噪声与高噪声分别使用新的 Python 进程。
+
+This benchmark does not change any economic parameter, cannot reach the
+1,000,000-period convergence criterion, writes zero measurement rows, and
+marks every report `research_result=false`. A Slurm report includes a clearly
+named linear extrapolation to one million periods; a local smoke report does
+not. This extrapolation is not a measured million-period duration and total
+convergence time remains unknown until agents actually converge. / 它不修改任何
+经济参数，不可能在 benchmark 期数内达到 100 万期稳定判据，写入零条测量记录，
+并把报告明确标记为 `research_result=false`。Slurm 报告会给出名称明确的“百万期
+线性外推”，本地 smoke 报告不会；它不是实际跑完百万期的时长。agent 真正收敛前，
+总训练时间仍然未知。
+
+On Narval, after the pinned environment exists and this commit has been pulled,
+submit from `03_Code/vibe_replication`: / 在 Narval 已建立固定环境并拉取本 commit
+以后，从 `03_Code/vibe_replication` 提交：
+
+```bash
+sbatch --account=YOUR_REAL_ALLOCATION hpc/step_36g_narval_benchmark.slurm
+```
+
+Replace `YOUR_REAL_ALLOCATION` with the allocation shown by your Alliance
+account; it is intentionally not guessed in the script. Check the queue and,
+after completion, inspect resource use with: / 请把 `YOUR_REAL_ALLOCATION` 换成
+Alliance 账户显示的真实 allocation；脚本故意不猜。查看队列和任务完成后的资源用量：
+
+```bash
+squeue -u "$USER"
+sacct -j JOB_ID --format=JobID,JobName,State,Elapsed,ReqMem,MaxRSS
+```
+
+The two checksum-protected reports are saved below
+`$SCRATCH/vibe_replication_step36g/<commit>/job_<job-id>/`. Generated benchmark
+data are not committed to Git. / 两份带校验的报告保存在
+`$SCRATCH/vibe_replication_step36g/<commit>/job_<job-id>/` 下；benchmark 生成数据
+不进入 Git。

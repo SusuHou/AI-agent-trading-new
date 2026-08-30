@@ -12,3 +12,9 @@
 *.checkpoint
 *.bundle
 *.lock
+
+# Slurm stdout/stderr are machine-specific; keep only the directory itself.
+# Slurm 输出属于特定机器；Git 只保留目录本身。
+/hpc/logs/*.out
+/hpc/logs/*.err
+!/hpc/logs/.gitkeep

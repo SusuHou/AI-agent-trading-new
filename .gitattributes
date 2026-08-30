@@ -4,6 +4,7 @@
 *.md text eol=lf
 *.txt text eol=lf
 *.ps1 text eol=lf
+*.slurm text eol=lf
 *.json text eol=lf
 *.yaml text eol=lf
 *.yml text eol=lf
@@ -13,4 +14,3 @@
 *.pdf binary
 *.png binary
 *.zip binary
-

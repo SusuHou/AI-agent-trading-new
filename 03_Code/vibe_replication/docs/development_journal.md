@@ -107,6 +107,16 @@ are maintained in [the paper-to-code checklist](00_paper_to_code_checklist.md).
    before the optional IRF/mechanism analysis / `run_formal_experiment.py`
    建立并管理低/高噪声核心计划，并有意停在 Step 36E，让核心结果可以先于可选的
    IRF/机制分析产生。
+10. **Step 36G — Target-machine throughput benchmark / 目标机器吞吐率测试。**
+    The code and Slurm wrapper now isolate a fresh formal paper-mode sandbox,
+    run a short warm-up, exactly resume the same session for the measured
+    chunk, and publish a checksum-protected operational receipt. Low/high cells
+    use separate Python processes. The Narval job itself is still
+    `[PLANNED]`; therefore no Narval rate or total runtime is reported yet. /
+    代码与 Slurm 包装现已建立隔离的正式 paper-mode sandbox，先短暂预热，再精确
+    续跑同一 session 的计时 chunk，并发布带校验的运行报告；低/高噪声使用不同
+    Python 进程。Narval job 本身仍属 `[PLANNED]`，因此目前没有 Narval 速度或总
+    运行时间数值。
 
 ## Two experiment tracks / 两条实验路线
 
@@ -182,17 +192,17 @@ Step 35F 的小规模演示只属于管线证据，绝不能作为论文发现�
 
 ## Next work after Baseline R0 / R0 之后的工作
 
-1. `[PLANNED]` Benchmark the exact formal market loop on the target machine / 在
-   目标机器上测量正式市场循环的真实吞吐量。
+1. `[CODE VERIFIED; NARVAL RUN PLANNED]` Submit Step 36G and benchmark the exact
+   formal market loop on the target machine / 提交 Step 36G，在目标机器上测量
+   正式市场循环的真实吞吐量。
 2. `[PLANNED]` Add an accelerated backend while retaining the readable Python
    path, then require controlled same-seed parity / 保留可读 Python 路径并增加加速
    后端，再要求受控的同 seed 一致性验证。
-3. `[PLANNED]` Pin and test the cluster environment and SLURM packaging / 固定并
-   测试超算环境与 SLURM 打包。
+3. `[WRAPPER IMPLEMENTED; COMPUTE-NODE TEST PLANNED]` Pin and test the cluster
+   environment and Slurm packaging / 包装已经实现；仍需在计算节点固定并测试环境。
 4. `[PLANNED]` Run and collect 1,000 low-noise plus 1,000 high-noise formal
    sessions / 运行并汇总低、高噪声各 1,000 个正式 session。
 5. `[PLANNED]` Add the full-cell IRF manager if the mechanism analysis is in
    scope / 若需要机制分析，再加入完整 cell 的 IRF manager。
 6. `[PLANNED]` Produce paper figures/tables and compare them with the source
    paper / 制作论文图表并与原文比较。
-
