@@ -1,0 +1,4 @@
+session 1:    100M periods  streak=       5  changes/100M=  532  eps=6.7e-03  177s
+session 1:    197M periods  streak= 1000000  changes/100M=  379  eps=5.2e-05  241s
+session 1: converged=True T_c=197408337
+session 1: Delta_C=0.104 per-agent=(0.166, 0.042) profit_gain=1.013 chi_hat=164.41 (N 166.67, M 125.00) I_C=9512220.8

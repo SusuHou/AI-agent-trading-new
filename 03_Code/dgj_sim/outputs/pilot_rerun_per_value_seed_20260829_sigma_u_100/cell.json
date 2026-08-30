@@ -1,0 +1,30 @@
+{
+  "cell": {
+    "parameters": {
+      "num_speculators": 2,
+      "value_mean": 1.0,
+      "value_std": 1.0,
+      "noise_std": 100.0,
+      "investor_slope": 500.0,
+      "pricing_error_weight": 0.1,
+      "discount_factor": 0.95,
+      "learning_rate": 0.01,
+      "exploration_decay": 5e-07,
+      "num_value_points": 10,
+      "num_action_points": 15,
+      "num_price_points": 31,
+      "grid_widening": 0.1,
+      "market_maker_window": 10000,
+      "convergence_periods": 1000000,
+      "measurement_periods": 100000
+    },
+    "label": "pilot_rerun_per_value_seed_20260829_sigma_u_100",
+    "prehistory": "nash",
+    "price_mapping": "nearest",
+    "price_grid": "per_value",
+    "training_tie_rule": "uniform",
+    "measurement_tie_rule": "lowest_index"
+  },
+  "cell_key": "6d2e57c5993e710e",
+  "experiment_seed": 20260829
+}

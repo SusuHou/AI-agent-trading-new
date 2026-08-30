@@ -1,0 +1,32 @@
+{
+  "sessions": 1,
+  "delta_c_mean": 0.31922098028840246,
+  "delta_c_p01": 0.31922098028840246,
+  "delta_c_p99": 0.31922098028840246,
+  "chi_hat_mean": 158.11265005418875,
+  "chi_nash": 166.66663333334353,
+  "chi_cartel": 124.99995000001813,
+  "informativeness_mean": 8797736.158883177,
+  "converged_at_median": 3091841692.0,
+  "liquidity_mean": 4345121.728839897,
+  "mispricing_mean": 0.2838776848555157,
+  "mechanism_shares": {
+    "price_trigger": 0.0,
+    "over_pruning": 0.0,
+    "unclassified": 0.0
+  },
+  "per_session": [
+    {
+      "file": "session_0000.npz",
+      "mechanism": null,
+      "liquidity": 4345121.728839897,
+      "mispricing": 0.2838776848555157,
+      "converged_at": 3091841692,
+      "delta_c": 0.31922098028840246,
+      "profit_gain_vs_nash": 1.0399031474873695,
+      "chi_hat": 158.11265005418875,
+      "price_informativeness": 8797736.158883177,
+      "mean_lambda_hat": 0.002000000460294603
+    }
+  ]
+}

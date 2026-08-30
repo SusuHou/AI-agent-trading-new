@@ -1,0 +1,24 @@
+session 1:    100M periods  streak=       0  changes/100M= 5632  eps=6.7e-03  219s
+session 1:    200M periods  streak=       1  changes/100M= 5680  eps=4.5e-05  431s
+session 1:    300M periods  streak=      68  changes/100M= 5676  eps=3.1e-07  554s
+session 1:    400M periods  streak=       0  changes/100M= 5341  eps=2.1e-09  602s
+session 1:    500M periods  streak=       0  changes/100M= 5315  eps=1.4e-11  652s
+session 1:    600M periods  streak=       0  changes/100M= 5277  eps=9.4e-14  700s
+session 1:    700M periods  streak=     517  changes/100M= 4916  eps=6.3e-16  749s
+session 1:    800M periods  streak=    8688  changes/100M=  197  eps=4.2e-18  794s
+session 1:    900M periods  streak=   12249  changes/100M=   88  eps=2.9e-20  847s
+session 1:   1000M periods  streak=   22377  changes/100M=   94  eps=1.9e-22  893s
+session 1:   1100M periods  streak=   39171  changes/100M=   87  eps=1.3e-24  1136s
+session 1:   1200M periods  streak=   88971  changes/100M=   67  eps=8.8e-27  2119s
+session 1:   1300M periods  streak=    3744  changes/100M=   75  eps=5.9e-29  2345s
+session 1:   1400M periods  streak=   64603  changes/100M=   71  eps=4.0e-31  5235s
+session 1:   1500M periods  streak=   43018  changes/100M=   70  eps=2.7e-33  7881s
+session 1:   1600M periods  streak=   12818  changes/100M=   78  eps=1.8e-35  8005s
+session 1:   1700M periods  streak=   53311  changes/100M=   60  eps=1.2e-37  8882s
+session 1:   1800M periods  streak=  244111  changes/100M=   69  eps=8.2e-40  10974s
+session 1:   1900M periods  streak=   71493  changes/100M=   59  eps=5.5e-42  23647s
+session 1:   2000M periods  streak=  160079  changes/100M=   54  eps=3.7e-44  24895s
+session 1:   2100M periods  streak=   40274  changes/100M=   58  eps=2.5e-46  25344s
+session 1:   2183M periods  streak= 1000000  changes/100M=   54  eps=4.0e-48  26755s
+session 1: converged=True T_c=2182581772
+session 1: Delta_C=0.370 per-agent=(0.413, 0.327) profit_gain=1.046 chi_hat=153.77 (N 166.67, M 125.00) I_C=8321513.8

@@ -1,0 +1,8 @@
+session 0:    100M periods  streak=       9  changes/100M=  455  eps=6.7e-03  177s
+session 0:    200M periods  streak=     621  changes/100M=  302  eps=4.5e-05  244s
+session 0:    300M periods  streak=    1021  changes/100M=   84  eps=3.1e-07  319s
+session 0:    400M periods  streak=    6368  changes/100M=   58  eps=2.1e-09  415s
+session 0:    500M periods  streak=   24346  changes/100M=   18  eps=1.4e-11  598s
+session 0:    548M periods  streak= 1000000  changes/100M=   11  eps=1.3e-12  666s
+session 0: converged=True T_c=547913375
+session 0: Delta_C=0.141 per-agent=(0.092, 0.189) profit_gain=1.018 chi_hat=163.10 (N 166.67, M 125.00) I_C=9361211.4
