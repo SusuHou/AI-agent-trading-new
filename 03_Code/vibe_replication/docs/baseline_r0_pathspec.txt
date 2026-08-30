@@ -1,0 +1,14 @@
+.gitignore
+.gitattributes
+03_Code/vibe_replication/.gitignore
+03_Code/vibe_replication/README.md
+03_Code/vibe_replication/requirements.txt
+03_Code/vibe_replication/run_formal_experiment.py
+:(glob)03_Code/vibe_replication/src/*.py
+:(glob)03_Code/vibe_replication/steps/*.py
+:(glob)03_Code/vibe_replication/tests/*.py
+:(glob)03_Code/vibe_replication/tools/*.py
+:(glob)03_Code/vibe_replication/tools/*.ps1
+:(glob)03_Code/vibe_replication/docs/*.md
+03_Code/vibe_replication/docs/baseline_r0_pathspec.txt
+03_Code/vibe_replication/docs/methodology/Methodology_Working_Draft_Steps_01_to_14.docx

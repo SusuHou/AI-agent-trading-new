@@ -1,0 +1,25 @@
+# Python-generated files / Python 自动生成文件
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Dependency caches / 依赖缓存
+node_modules/
+.venv/
+venv/
+env/
+
+# Workspace-wide temporary output / 工作区级临时输出
+/.tmp/
+/tmp/
+/render_temp/
+
+# Editor and operating-system files / 编辑器与操作系统文件
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,14 @@
+# Experiment output is reproducible and may be very large. / 实验输出可重新生成，而且可能非常大。
+/results/
+/tmp/
+/backups/
+
+# Rendered document previews are generated from the source document. / 文档预览由源文档生成。
+/docs/methodology/_render*/
+/docs/methodology/Methodology_Working_Draft_Steps_01_to_10.docx
+/steps/*.docx
+
+# Persisted run state must not be mistaken for portable source code. / 持久化运行状态不能被误当成可移植源码。
+*.checkpoint
+*.bundle
+*.lock

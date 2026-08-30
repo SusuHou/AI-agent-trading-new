@@ -1,0 +1,16 @@
+# Stable cross-platform text representation / 稳定的跨平台文本表示
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.ps1 text eol=lf
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Office documents and archives are binary / Office 文档与压缩包属于二进制文件
+*.docx binary
+*.pdf binary
+*.png binary
+*.zip binary
+

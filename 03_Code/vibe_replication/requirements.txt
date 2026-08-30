@@ -1,0 +1,4 @@
+# Scientific runtime dependency verified for Repository Baseline R0.
+# Repository Baseline R0 已验证的科学计算依赖。
+numpy==2.5.1
+
