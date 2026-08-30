@@ -57,6 +57,42 @@ of every ambiguous sentence in the paper, the full experiment will converge,
 or the paper's numerical findings have been reproduced / 不能证明我们对论文所有
 模糊表述的解释都唯一正确，也不能证明完整实验一定收敛或论文数值结果已经复现。
 
+## Step 36G pre-deployment validation / Step 36G 部署前验证
+
+Status: `[CONTEMPORANEOUS]` / 状态：`[当时记录]`
+
+- Date / 日期：2026-08-30.
+- Tested implementation commit / 被测试的实现 commit：
+  `7f915c05c87720348d789ba48447cbcac79af9af`.
+- Python / Python：3.13.1.
+- NumPy / NumPy：2.5.1.
+- Focused command / 专项命令：
+  `py -3 -X utf8 -m unittest tests.test_step36g_narval_throughput_benchmark -v`.
+- Focused result / 专项结果：`9 tests; 9 passed`.
+- Full command / 完整命令：
+  `py -3 -X utf8 -m unittest discover -s tests -v`.
+- Full result / 完整结果：`262 tests; 262 passed; 0 failures; 0 errors; 0 skips`.
+- Full-suite runtime / 完整套件耗时：238.662 seconds / 238.662 秒。
+- Real local connection smoke / 真实本地连接 smoke：one low-noise paper-mode
+  session ran `1` fresh period and exactly resumed the same checkpoint for `2`
+  periods; the persisted receipt reloaded with `execution_scope` equal to
+  `local_connection_smoke`, cumulative training period `3`, zero measurement
+  rows, `research_result=false`, and no million-period extrapolation / 一个低噪声
+  paper-mode session 先 fresh 运行 1 期，再从同一 checkpoint 精确续跑 2 期；
+  持久化报告成功重读，明确标为本地连接 smoke、累计训练 3 期、测量记录为零、
+  `research_result=false`，且不发布百万期外推。
+
+What this proves / 这能证明：the Step-36G Python boundary, exact-resume audit,
+low/high forwarding, CLI, report semantics/checksum, source-manifest separation,
+and all earlier encoded checks pass locally / Step 36G 的 Python 边界、精确续跑
+审计、低/高噪声转发、CLI、报告语义/校验、源码清单隔离，以及此前所有已编码检查
+在本机通过。
+
+What this does not prove / 这不能证明：the Slurm wrapper has run on Narval,
+Narval's throughput or memory use, convergence time, `Delta^C`, or any paper
+finding / 尚不能证明 Slurm wrapper 已在 Narval 实跑，也没有 Narval 吞吐率、内存、
+收敛时长、`Delta^C` 或任何论文发现。
+
 ## Reconstructed milestone map / 重建的里程碑地图
 
 All entries in this section are `[RECONSTRUCTED—VERIFIED]` unless stated
