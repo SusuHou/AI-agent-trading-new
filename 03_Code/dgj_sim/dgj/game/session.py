@@ -13,6 +13,8 @@ never sees a Python object and a checkpoint is one np.savez.
 
 from dataclasses import dataclass, field
 import json
+import os
+import tempfile
 import time
 from typing import Any
 
@@ -22,6 +24,11 @@ from dgj.config import ExperimentCell
 from dgj.environment import fundamental
 from dgj.game import protocol
 from dgj.game.shocks import ShockStreams
+from dgj.provenance import (
+    SCIENTIFIC_ENGINE_VERSION,
+    scientific_runtime_identity,
+    scientific_source_fingerprint,
+)
 from dgj.players import benchmarks
 from dgj.players.market_maker import adaptive, prehistory
 from dgj.players.market_maker.adaptive import (
@@ -29,6 +36,47 @@ from dgj.players.market_maker.adaptive import (
 )
 from dgj.players.speculator import action_space, policy as policy_module, q_learning
 from dgj.players.speculator.state_space import number_of_states
+
+
+CHECKPOINT_SCHEMA_VERSION = 1
+
+
+def atomic_savez_compressed(path: str, **arrays: Any) -> None:
+    """Write one ``.npz`` beside its target, then publish it atomically.
+
+    A Slurm job can be stopped while NumPy is compressing a file. Writing
+    directly to the final path could then leave a corrupt file that merely
+    *looks* like a checkpoint.  The temporary file is created in the same
+    directory so ``os.replace`` is one atomic filesystem operation.
+
+    / 先在目标旁边写完整临时文件，再原子替换。这样超算任务中断时，不会把
+    半截文件伪装成有效 checkpoint。
+    """
+    target = os.path.abspath(os.fspath(path))
+    directory = os.path.dirname(target)
+    os.makedirs(directory, exist_ok=True)
+    temporary_path: str | None = None
+    try:
+        descriptor, temporary_path = tempfile.mkstemp(
+            dir=directory,
+            prefix=f".{os.path.basename(target)}.",
+            # NumPy appends ".npz" to string paths that do not already end in
+            # it. Keeping that suffix here ensures we replace the file we made.
+            suffix=".tmp.npz",
+        )
+        os.close(descriptor)
+        np.savez_compressed(temporary_path, **arrays)
+        # Windows requires a writable descriptor for ``fsync``.
+        with open(temporary_path, "rb+") as temporary:
+            os.fsync(temporary.fileno())
+        os.replace(temporary_path, target)
+        temporary_path = None
+    finally:
+        if temporary_path is not None:
+            try:
+                os.remove(temporary_path)
+            except FileNotFoundError:
+                pass
 
 
 @dataclass
@@ -254,26 +302,154 @@ class Session:
             "wall_time_seconds": dict(self.wall_time),
         }
 
-    def save_checkpoint(self, path: str) -> None:
+    def save_checkpoint(self, path: str, *, training_chunk_size: int | None = None) -> None:
+        """Save a self-identifying, atomic training checkpoint.
+
+        ``training_chunk_size`` is part of reproducibility because an unused
+        random tail is discarded when convergence occurs inside a chunk.
+        / chunk size 会影响收敛时丢弃多少预抽随机数，因此也必须随 checkpoint
+        保存并在续跑时核对。
+        """
+        if training_chunk_size is not None and training_chunk_size < 1:
+            raise ValueError("training_chunk_size must be positive")
         st = self.state
-        np.savez_compressed(
-            path, Q=st.Q, visits=st.visits, policy=st.policy, cursor=st.cursor, hist=st.hist, stats=st.stats,
+        atomic_savez_compressed(
+            path,
+            checkpoint_schema_version=CHECKPOINT_SCHEMA_VERSION,
+            scientific_engine_version=SCIENTIFIC_ENGINE_VERSION,
+            scientific_source_fingerprint=scientific_source_fingerprint(),
+            scientific_runtime_identity=json.dumps(
+                scientific_runtime_identity(), sort_keys=True
+            ),
+            cell_key=self.cell.key(),
+            session_index=self.session_index,
+            experiment_seed=self.streams.experiment_seed,
+            training_chunk_size=-1 if training_chunk_size is None else training_chunk_size,
+            Q=st.Q,
+            visits=st.visits,
+            policy=st.policy,
+            cursor=st.cursor,
+            hist=st.hist,
+            stats=st.stats,
             rng=json.dumps(self.streams.state()), phase=self.phase,
             converged_at=-1 if self.converged_at is None else self.converged_at,
             policy_changes_seen=self.policy_changes_seen,
+            wall_time=json.dumps(self.wall_time),
         )
 
-    def load_checkpoint(self, path: str) -> None:
-        data = np.load(path, allow_pickle=False)
+    def load_checkpoint(self, path: str, *, expected_training_chunk_size: int | None = None) -> None:
+        """Validate checkpoint identity completely before restoring its state.
+
+        Legacy checkpoints without identity metadata are rejected rather than
+        silently mixed with another experiment. / 旧 checkpoint 若没有 cell、
+        seed、session 等身份信息，会明确拒绝，而不是偷偷混入本次实验。
+        """
+        if expected_training_chunk_size is not None and expected_training_chunk_size < 1:
+            raise ValueError("expected_training_chunk_size must be positive")
         st = self.state
-        st.Q[...] = data["Q"]
-        st.visits[...] = data["visits"]
-        st.policy[...] = data["policy"]
-        st.cursor[...] = data["cursor"]
-        st.hist[...] = data["hist"]
-        st.stats[...] = data["stats"]
-        self.streams.restore(json.loads(str(data["rng"])))
-        self.phase = str(data["phase"])
-        c = int(data["converged_at"])
+        required = {
+            "checkpoint_schema_version", "scientific_engine_version",
+            "scientific_source_fingerprint", "scientific_runtime_identity",
+            "cell_key", "session_index", "experiment_seed",
+            "training_chunk_size", "Q", "visits", "policy", "cursor", "hist", "stats",
+            "rng", "phase", "converged_at", "policy_changes_seen", "wall_time",
+        }
+        try:
+            with np.load(path, allow_pickle=False) as data:
+                missing = required.difference(data.files)
+                if missing:
+                    raise ValueError(
+                        "legacy or incomplete checkpoint; missing fields: "
+                        + ", ".join(sorted(missing))
+                    )
+                schema = int(data["checkpoint_schema_version"].item())
+                if schema != CHECKPOINT_SCHEMA_VERSION:
+                    raise ValueError(
+                        f"unsupported checkpoint schema {schema}; expected {CHECKPOINT_SCHEMA_VERSION}"
+                    )
+                saved_engine_version = int(data["scientific_engine_version"].item())
+                saved_source_fingerprint = str(
+                    data["scientific_source_fingerprint"].item()
+                )
+                saved_runtime_identity = json.loads(
+                    str(data["scientific_runtime_identity"].item())
+                )
+                saved_cell_key = str(data["cell_key"].item())
+                saved_session_index = int(data["session_index"].item())
+                saved_seed = int(data["experiment_seed"].item())
+                saved_chunk_size = int(data["training_chunk_size"].item())
+                identity_errors = []
+                if saved_engine_version != SCIENTIFIC_ENGINE_VERSION:
+                    identity_errors.append(
+                        f"scientific_engine_version={saved_engine_version}, "
+                        f"expected {SCIENTIFIC_ENGINE_VERSION}"
+                    )
+                current_fingerprint = scientific_source_fingerprint()
+                if saved_source_fingerprint != current_fingerprint:
+                    identity_errors.append(
+                        "scientific_source_fingerprint differs from the current code"
+                    )
+                if saved_runtime_identity != scientific_runtime_identity():
+                    identity_errors.append(
+                        "scientific_runtime_identity differs from the current environment"
+                    )
+                if saved_cell_key != self.cell.key():
+                    identity_errors.append(f"cell_key={saved_cell_key}, expected {self.cell.key()}")
+                if saved_session_index != self.session_index:
+                    identity_errors.append(
+                        f"session_index={saved_session_index}, expected {self.session_index}"
+                    )
+                if saved_seed != self.streams.experiment_seed:
+                    identity_errors.append(
+                        f"experiment_seed={saved_seed}, expected {self.streams.experiment_seed}"
+                    )
+                if (
+                    expected_training_chunk_size is not None
+                    and saved_chunk_size != expected_training_chunk_size
+                ):
+                    identity_errors.append(
+                        f"training_chunk_size={saved_chunk_size}, "
+                        f"expected {expected_training_chunk_size}"
+                    )
+                if identity_errors:
+                    raise ValueError("checkpoint identity mismatch: " + "; ".join(identity_errors))
+
+                restored_arrays = {}
+                for name in ("Q", "visits", "policy", "cursor", "hist", "stats"):
+                    value = np.array(data[name], copy=True)
+                    target = getattr(st, name)
+                    if value.shape != target.shape or value.dtype != target.dtype:
+                        raise ValueError(
+                            f"checkpoint {name} has shape/dtype {value.shape}/{value.dtype}; "
+                            f"expected {target.shape}/{target.dtype}"
+                        )
+                    restored_arrays[name] = value
+
+                rng_state = json.loads(str(data["rng"].item()))
+                if not isinstance(rng_state, list) or len(rng_state) != len(self.streams.state()):
+                    raise ValueError("checkpoint RNG stream count does not match this session")
+                phase = str(data["phase"].item())
+                c = int(data["converged_at"].item())
+                if phase not in {"training", "converged"}:
+                    raise ValueError(f"checkpoint phase {phase!r} cannot be resumed")
+                if (phase == "training" and c >= 0) or (phase == "converged" and c < 0):
+                    raise ValueError("checkpoint phase and converged_at disagree")
+                policy_changes_seen = int(data["policy_changes_seen"].item())
+                wall_time = json.loads(str(data["wall_time"].item()))
+                if (
+                    not isinstance(wall_time, dict)
+                    or set(wall_time) != {"training", "measurement"}
+                    or any(float(value) < 0 for value in wall_time.values())
+                ):
+                    raise ValueError("checkpoint wall_time is invalid")
+        except (OSError, ValueError, KeyError, json.JSONDecodeError) as error:
+            raise ValueError(f"cannot load checkpoint {path!r}: {error}") from error
+
+        # Commit only after every field above has passed validation.
+        for name, value in restored_arrays.items():
+            getattr(st, name)[...] = value
+        self.streams.restore(rng_state)
+        self.phase = phase
         self.converged_at = None if c < 0 else c
-        self.policy_changes_seen = int(data["policy_changes_seen"])
+        self.policy_changes_seen = policy_changes_seen
+        self.wall_time = {key: float(value) for key, value in wall_time.items()}

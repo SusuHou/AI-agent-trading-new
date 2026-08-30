@@ -173,14 +173,20 @@ class TestRule4_Reproducibility(unittest.TestCase):
         original.train(chunk_size=50, max_periods=150)
         with tempfile.TemporaryDirectory() as d:
             path = os.path.join(d, "ckpt.npz")
-            original.save_checkpoint(path)
+            original.save_checkpoint(path, training_chunk_size=50)
             original.train(chunk_size=50, max_periods=300)
             resumed = Session(LONG, 2, 9)
-            resumed.load_checkpoint(path)
+            resumed.load_checkpoint(path, expected_training_chunk_size=50)
             resumed.train(chunk_size=50, max_periods=300)
-        self.assertTrue(np.array_equal(original.state.Q, resumed.state.Q))
-        self.assertTrue(np.array_equal(original.state.cursor, resumed.state.cursor))
-        self.assertTrue(np.array_equal(original.state.hist, resumed.state.hist))
+        for name in ("Q", "visits", "policy", "cursor", "hist", "stats"):
+            self.assertTrue(
+                np.array_equal(getattr(original.state, name), getattr(resumed.state, name)),
+                name,
+            )
+        self.assertEqual(original.phase, resumed.phase)
+        self.assertEqual(original.converged_at, resumed.converged_at)
+        self.assertEqual(original.policy_changes_seen, resumed.policy_changes_seen)
+        self.assertEqual(original.streams.state(), resumed.streams.state())
 
 
 if __name__ == "__main__":

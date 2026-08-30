@@ -10,7 +10,7 @@ The economics are the same; the difference is structure and speed.
 ```
 py -3 -m pip install numba          # optional but ~200x faster; pure-Python fallback otherwise
 py -3 -m unittest discover -s tests -v
-py -3 -m dgj.experiments.run_cell --sessions 4 --workers 4 --max-periods 20000000 --out outputs/low_noise
+py -3 -m dgj.experiments.run_cell --debug-only --sessions 4 --workers 4 --max-periods 20000000 --out outputs/low_noise
 ```
 
 ## The four rules and where they live / 四条规则在代码中的位置
@@ -110,19 +110,43 @@ Design rules that make this work:
 ```
 python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt   # Python >= 3.10
 python -m unittest discover -s tests            # must pass on the cluster's Python before submitting
-OUT=outputs/low_noise_per_value CELL_ARGS="--noise-std 0.1 --price-grid per_value" sbatch hpc/submit_array.slurm
-python hpc/aggregate_dir.py outputs/low_noise_per_value
+mkdir -p logs
+OUT=outputs/low_noise_uncapped CELL_ARGS="--noise-std 0.1 --price-grid per_value --label low_noise" \
+  WORK_PERIODS=5000000000 sbatch hpc/submit_array.slurm
+# Submit the same command again after the array finishes: completed sessions skip,
+# incomplete sessions load ckpt_<k>.npz and do another 5B-period computing shift.
+python hpc/aggregate_dir.py outputs/low_noise_uncapped --expected-sessions 1000
 ```
 
 * One array task = one session (`dgj.experiments.run_session_cli`). Each writes its own
-  `session_<k>.npz`; a checkpoint `ckpt_<k>.npz` is saved every `--checkpoint-every` chunks and
-  resumed automatically, so a walltime kill costs at most one interval — just resubmit.
-* Set `--max-periods` (default 5B ≈ 1.5–3 h at ~1 µs/period). Sessions that hit the cap exit with
-  code 3 and are marked `censored` in the manifest; `aggregate_dir.py` reports how many.
+  `session_<k>.npz` **only after genuine convergence**. While incomplete it atomically saves
+  `ckpt_<k>.npz` plus `progress_<k>.json`; resubmitting the same session resumes exactly.
+  / 只有真正收敛才写正式结果；未完成时只保存 checkpoint，重复提交即可续跑。
+* `--work-periods` is additional work for one invocation, not a cumulative scientific cap.
+  The default is 5B per invocation. Exit 75 means a safe incomplete pause; the Slurm wrapper
+  converts it to task success. The session continues across later array submissions until the
+  one-million-period policy-stability criterion is met.
+* A per-session operating-system lock rejects overlapping array jobs for the same ID.
+  Checkpoints also bind a SHA-256 fingerprint of the trajectory-defining source files;
+  changing scientific code between rounds is rejected instead of silently mixed.
+* The 8-hour wall time remains an engineering safeguard. Slurm sends `USR1` five minutes early;
+  Python finishes its current checkpoint block and pauses safely. Reaching 50B cumulative periods
+  emits a diagnostic-review warning but does not declare convergence or failure.
+* `aggregate_dir.py` now refuses checkpoints, censored files, identity mismatches, and an incomplete
+  expected cohort. It cannot silently mix cap-time policies into `Delta^C`.
 * `NUMBA_CACHE_DIR` must be node-local (the script sets it) — a shared-filesystem cache races.
 * Memory per session ≈ 200 MB (Q table 0.7 MB; 1M-period shock chunks ≈ 50 MB).
 * Suggested first campaign: the two baseline cells (σ_u = 0.1 and 100) × the two price-grid
   readings (`per_value`, `global`), 100 sessions each, before spending on 1,000-session cells.
+
+### Recovering an older capped cohort / 修复旧的 capped 实验
+
+Do not overwrite the old evidence directory. The complete reconnect-safe protocol—including
+independent SHA-256-verified copies, a live Slurm signal/checkpoint pilot, repeated recovery
+rounds, and the later high-noise cell—is in [`hpc/NARVAL_UNCAPPED_RUN.md`](hpc/NARVAL_UNCAPPED_RUN.md).
+
+/ 不覆盖旧目录。完整、可在重新 SSH 登录后继续的命令都在上述指南中；请不要从 README
+拼接零散命令来运行正式实验。
 
 ## Where each `vibe_replication/steps` file went / 每个 step 的去向
 
