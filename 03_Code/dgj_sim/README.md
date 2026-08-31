@@ -35,6 +35,48 @@ are validated; different files are never overwritten. / 该命令验证全部 se
 编号、有限数值、汇总一致性、provenance、mechanism、``cell.json`` 及噪声条件，
 然后发布 CSV 和哈希 receipt；绝不覆盖内容不同的已有文件。
 
+## Step 37B: high-noise descriptive evidence / 高噪声描述性证据
+
+Use only the immutable Step 37A CSV and receipt; do not return to the session
+``.npz`` files or recompute the economic metrics. / 只读取 Step 37A 已冻结的 CSV
+和 receipt，不返回 session ``.npz``，也不重新计算经济指标：
+
+```bash
+python hpc/summarize_session_metrics.py \
+  "$HIGH_OUT/session_metrics.csv" \
+  --receipt "$HIGH_OUT/session_metrics_receipt.json" \
+  --expected-sessions 1000 \
+  --expected-noise-std 100 \
+  --expected-label high_noise \
+  --output-dir "$HIGH_OUT/step37b_high_noise"
+```
+
+The command re-hashes and validates the Step 37A pair, then publishes these
+immutable artifacts without pandas, Matplotlib, or any extra HPC dependency:
+/ 该命令重新验证 Step 37A 文件及其哈希，然后在不增加 pandas、Matplotlib 或
+其他 HPC 依赖的情况下发布：
+
+- ``descriptive_statistics.csv`` — eight metrics with mean, sample standard
+  deviation, standard error, Type-7 quantiles, minimum, and maximum. /
+  八个指标的均值、样本标准差、标准误、Type-7 分位数及范围。
+- ``ecdf_data.csv`` — every accepted observation in exact deterministic ECDF
+  order; this is the canonical plotting input for later figures. / 保留每个
+  session 的精确 ECDF 绘图数据，不使用任意直方图分箱。
+- ``provenance_counts.csv`` — current-schema and recovered legacy counts. /
+  当前 schema 与恢复的 legacy session 数量。
+- ``descriptive_report.md`` — a human-readable high-noise table. / 便于阅读的
+  高噪声描述表。
+- ``analysis_receipt.json`` — input/output hashes, definitions, runtime, and
+  mechanism-availability status. / 输入输出哈希、统计定义、运行环境和机制可用性。
+
+This is high-noise descriptive evidence only—not a completed low-versus-high
+replication, confidence interval, hypothesis test, or paper comparison. Core
+campaigns run with ``irf_paths=0``; therefore zero mechanism sessions means
+"not measured," and Step 37B records shares as unavailable rather than three
+false zero-percent results. / 本步骤只是高噪声描述证据，不是完整的高低噪声比较。
+核心实验使用 ``irf_paths=0``，所以机制 session 为零表示“没有测量”，绝不表示
+三种机制的真实占比都是零。
+
 ## The four rules and where they live / 四条规则在代码中的位置
 
 | Rule | Enforced in |
