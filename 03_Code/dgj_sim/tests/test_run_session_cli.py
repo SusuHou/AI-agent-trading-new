@@ -107,6 +107,16 @@ class TestResumableSessionCLI(unittest.TestCase):
             summary = aggregate(cli.build_cell(parsed), out)
             self.assertEqual(summary["sessions"], 1)
             self.assertEqual(summary["censored_sessions"], 0)
+            self.assertEqual(summary["summary_schema_version"], 1)
+            with open(os.path.join(out, "cell.json"), encoding="utf-8") as handle:
+                cell_identity = json.load(handle)
+            for name in (
+                "cell_key",
+                "cell",
+                "experiment_seed",
+                "training_chunk_size",
+            ):
+                self.assertEqual(summary[name], cell_identity[name])
             with open(os.path.join(out, "progress_0000.json"), encoding="utf-8") as handle:
                 receipt = json.load(handle)
             self.assertEqual(receipt["status"], "complete")

@@ -13,6 +13,28 @@ py -3 -m unittest discover -s tests -v
 py -3 -m dgj.experiments.run_cell --debug-only --sessions 4 --workers 4 --max-periods 20000000 --out outputs/low_noise
 ```
 
+## Step 37A: freeze accepted session metrics / 冻结已验收的 session 指标
+
+After strict aggregation has produced an accepted ``summary.json``, export its
+``per_session`` records without recalculating any metric:
+
+/严格汇总生成已验收的 ``summary.json`` 后，在不重新计算任何指标的情况下导出
+``per_session`` 记录：
+
+```bash
+python hpc/export_summary_csv.py "$HIGH_OUT/summary.json" \
+  --expected-sessions 1000 \
+  --expected-noise-std 100
+```
+
+The command validates the complete session-index set, finite metrics, aggregate
+totals, provenance counts, mechanism fields, ``cell.json``, and the requested
+noise condition. It then publishes ``session_metrics.csv`` and
+``session_metrics_receipt.json`` beside the summary. Existing identical files
+are validated; different files are never overwritten. / 该命令验证全部 session
+编号、有限数值、汇总一致性、provenance、mechanism、``cell.json`` 及噪声条件，
+然后发布 CSV 和哈希 receipt；绝不覆盖内容不同的已有文件。
+
 ## The four rules and where they live / 四条规则在代码中的位置
 
 | Rule | Enforced in |

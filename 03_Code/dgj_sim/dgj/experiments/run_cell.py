@@ -181,6 +181,14 @@ def aggregate(cell: ExperimentCell, out_dir: str, *, progress: bool = False) -> 
             ),
         }
     summary = {
+        # Bind every reported metric to the exact experiment identity.  Step
+        # 37A must never be able to pair one cell's summary with another
+        # cell.json. / 把汇总值直接绑定到实验身份，防止与错误 cell.json 配对。
+        "summary_schema_version": 1,
+        "cell_key": cell.key(),
+        "cell": cell.to_dict(),
+        "experiment_seed": expected_seed,
+        "training_chunk_size": expected_chunk_size,
         "sessions": len(per_session),
         "delta_c_mean": float(deltas.mean()),
         "delta_c_p01": float(np.percentile(deltas, 1)),
