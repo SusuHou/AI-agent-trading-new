@@ -57,6 +57,7 @@ Status meanings / 状态含义:
 | I-11 | Documentation lags the codebase | `HOUSEKEEPING` | — |
 | I-12 | No test that the converged outcome is an equilibrium | `OPEN` | Results / Appendix |
 | I-13 | Global deviation test doubles as an independent mechanism classifier | `OPEN` | Results — proposed contribution |
+| **I-14** | **No negative control: the engine has never been shown to produce zero collusion** | `OPEN` | **Results — highest priority** |
 
 ---
 
@@ -906,3 +907,98 @@ reproduce the paper's tests, or state plainly that this is a **stronger test of
 our own design** and say why. / 实现**之前**先读附录 4.2 与 4.10 的确切定义。
 自创检验再宣称与论文一致，是审稿人一眼看穿的问题：要么复现论文的检验，要么明确
 声明这是**我们自己设计的更强检验**并说明理由。
+
+
+---
+
+## I-14 — No negative control: the engine has never been shown to produce zero collusion / 缺少阴性对照：从未证明引擎能产出零合谋
+
+- **Status / 状态**: `OPEN` — **highest priority of I-12/I-13/I-14** / 三项中优先级最高
+- **Date / 日期**: 2026-09-01
+- **Destination / 论文去处**: Results — validation, and a likely referee's first question / 结果章验证，且很可能是审稿人的第一个问题
+
+**The exposure / 暴露点**
+
+The first thing a referee asks is not "did you test for equilibrium" but: *how do
+we know your Q-learning implementation does not simply always produce
+`Delta^C > 0`?* No current test answers this. `test_parity_vs_steps`,
+`test_benchmarks`, `test_market_maker`, `test_detectability`,
+`test_metrics_and_irf`, `test_protocol_order` all verify that a **component** is
+correct. None demonstrates that the **whole engine** returns zero collusion in a
+setting where zero collusion is the right answer. Strictly, no `Delta^C > 0`
+result has yet ruled out an engine-level tendency to manufacture collusion. /
+目前没有任何测试能回答「你的实现是否总是产出合谋」。所有测试都在验证**组件**正确
+，没有一个证明**整个引擎**在应当无合谋的环境中确实给出零合谋。
+
+**The paper hands us the control / 论文已给出对照设定**
+
+`docs/paper_full_text.txt:1744–1785`:
+
+> "we **disable the AI speculators' ability to use lagged market prices as a
+> monitoring tool**. This is accomplished by **removing the lagged market price
+> `p_{t-1}` from the state variable `s_t`** used for decision-making at period
+> `t` ... even in environments with both a significant presence of
+> information-insensitive investors (i.e., a high `xi`) and low noise trading
+> risk (i.e., a low `sigma_u`), the price-trigger punishment scheme cannot be
+> learned, and **the collusion capacity, measured by `Delta^C`, drops to zero.**"
+
+This is a placebo/ablation with a predicted effect of **0.75 -> 0** in the
+low-noise, high-`xi` cell — the same cell as I-02. / 这是一个预测效应为
+**0.75 -> 0** 的消融实验，且用的正是 I-02 那个环境。
+
+**Implementation cost: a few lines / 实现成本：几行**
+
+State encoding is `encode(p_idx, v_lag, v_cur, n_v) = (p_idx*n_v + v_lag)*n_v + v_cur`.
+Removing `p_{t-1}` means forcing `p_next = 0` in `protocol.run_periods`, ideally
+behind a new `ExperimentCell` flag (e.g. `state_includes_lagged_price: bool = True`)
+so the cell key and provenance record the ablation. No new algorithm; no economic
+parameter changes. / 只需在 kernel 中把 `p_next` 固定为 0，最好加一个
+`ExperimentCell` 开关，使 cell key 与 provenance 记录该消融。不改任何经济参数。
+
+**Runtime cost: lower than the main experiment / 运行成本：低于主实验**
+
+Reachable states collapse from `31 * 10 * 10 = 3,100` to `100`, so there are 31x
+fewer policy masks that can flip and `T_c` should fall well below the 3e9
+observed in the low-noise pilot (see I-06: the streak resets whenever *any* mask
+changes). The predicted effect size is enormous, so a few dozen sessions suffice
+— 1,000 is not needed to distinguish 0.75 from 0. / 可达状态从 3,100 塌缩到 100，
+可翻转掩码少 31 倍，`T_c` 应显著低于 3e9；效应量极大，几十个 session 即可。
+
+**Three jobs at once / 一举三得**
+
+1. **Negative control** — demonstrates the engine can produce zero collusion. /
+   阴性对照：证明引擎能产出零合谋。
+2. **Mechanism confirmation** — shows directly that low-noise collusion is driven
+   by price monitoring, which is the entire logic chain of I-05 and I-13. /
+   机制确证：直接证明低噪声合谋由价格监测驱动。
+3. **Diagnostic for I-02** — if our low-noise `Delta^C = 0.32` is already partly
+   "monitoring not working," the ablation's *drop* will be visibly smaller than
+   the paper's 0.75 -> 0. That could localize the low-noise shortfall. /
+   诊断 I-02：若我们的低噪声结果本就部分源于监测失效，消融后的**跌幅**会明显小于
+   论文的 0.75 -> 0，从而定位差距来源。
+
+**Priority relative to I-12 and I-13 / 与 I-12、I-13 的优先级**
+
+`I-14 > I-13 > I-12`. I-14 is the cheapest, has the largest predicted effect,
+answers the most likely referee question, and doubles as a diagnostic for the
+open replication gap. / I-14 最便宜、预测效应最大、回答最可能的审稿人质询，并且
+兼作未决复现差距的诊断。
+
+**Note on I-12's severity / 关于 I-12 的严重性**
+
+I-12 (no experience-based equilibrium test) is a gap, not a wound. The paper
+concedes its own test is only local (footnote 29). Our primary claims —
+`Delta^C` magnitudes, IRF-based mechanism shares, market-quality metrics — do not
+depend on it. The only genuine exposure is wording: without the test, "the AI
+learned a collusive **equilibrium**" should be written "the AI learned a
+high-profit **strategy**." That is fixable with a sentence rather than with
+compute. / I-12 是缺口而非硬伤：论文自承其检验仅为局部，我们的主要结论不依赖它。
+真正的风险只在措辞——缺少该检验时，「学到了合谋**均衡**」应写成「学到了高利润
+**策略**」，这可用一句话解决，不必用算力解决。
+
+**Outstanding / 待办**
+
+Implement the flag, run a few dozen low-noise ablated sessions, and report
+`Delta^C` against the un-ablated cell. Record the ablation in the cell key so the
+two cohorts can never be pooled by accident. / 实现开关，运行数十个低噪声消融
+session，与未消融环境对比报告 `Delta^C`；消融须进入 cell key，避免两组数据被误合并。
