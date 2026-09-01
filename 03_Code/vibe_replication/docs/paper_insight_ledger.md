@@ -56,7 +56,7 @@ Status meanings / 状态含义:
 | I-10 | The Grossman–Stiglitz inversion | `OPEN` | Discussion |
 | I-11 | Documentation lags the codebase | `HOUSEKEEPING` | — |
 | I-12 | No test that the converged outcome is an equilibrium | `OPEN` | Results / Appendix |
-| I-13 | Global deviation test doubles as an independent mechanism classifier | `OPEN` | Results — proposed contribution |
+| I-13 | **CORRECTED** — the paper already runs the global test (Q-loss, OA 4.10); the gap is high noise | `OPEN` | Results — replication gap + contribution |
 | **I-14** | **No negative control: the engine has never been shown to produce zero collusion** | `OPEN` | **Results — highest priority** |
 
 ---
@@ -821,13 +821,106 @@ limitations rather than leaving the equilibrium claim unsupported. / 实现前�
 
 ---
 
-## I-13 — Global deviation test doubles as an independent mechanism classifier / 全局偏离检验同时是一个独立的机制分类器
+## I-13 — Q-loss: the paper's global best-response test, and the high-noise gap / Q-loss：论文的全局最优反应检验，及高噪声空档
 
-- **Status / 状态**: `OPEN` — proposed extension, nothing run / 提议的扩展，尚未执行
+- **Status / 状态**: `OPEN` — **corrected 2026-09-01**; this is a replication gap, not an invention / **已于 2026-09-01 更正**：这是复现缺口，不是自创
 - **Date / 日期**: 2026-09-01
-- **Destination / 论文去处**: Results — candidate incremental contribution / 结果章，候选增量贡献
+- **Destination / 论文去处**: Results — replication gap plus a genuine incremental contribution / 结果章：复现缺口，同时是真正的增量贡献
 
-**Framing first: this is not a defect to repair / 先立场：这不是待修复的缺陷**
+> **CORRECTION / 更正.** An earlier version of this entry claimed the paper does
+> not run a global deviation test and proposed a Monte-Carlo rollout as our own
+> contribution. **That was wrong.** Online Appendix 4.10 ("Computing Q-loss")
+> runs exactly this test, by **value function iteration** rather than Monte
+> Carlo — an exact and far cheaper method. Footnote 29's "no **local** deviation
+> is preferred" understates what OA 4.10 actually does: `x*_i(s)` is the argmax
+> of the theoretical `Q*` over the **whole** action set. / 本条早先版本称论文未做
+> 全局偏离检验并提议蒙特卡洛，**该说法错误**。附录 4.10 已用**值函数迭代**做了
+> 此检验；脚注 29 的「局部」措辞低估了它，`x*_i(s)` 是在**整个**动作集上取的
+> argmax。
+
+**The paper runs two DIFFERENT tests — do not conflate them / 论文做了两个不同的检验，不可混同**
+
+| | **OA 4.2** — Fershtman–Pakes three conditions | **OA 4.10** — Q-loss |
+|---|---|---|
+| Question | Is `Q` consistent with the agent's **own** experience? | Is the strategy the **true best response** to the rival? |
+| Method | Simulate along the equilibrium path; compare `mu_i(s)` against `Q_i(s, x_i(s))` | **Value function iteration** for the theoretical `Q*_i`, then compare |
+| Key detail | **Condition 2 is "satisfied by construction"** — argmax is over the agent's *own* `Q`, so it does **not** test optimality | Global: `x*_i(s)` is the argmax of `Q*` over all of `X` |
+| Detects over-pruning? | **No** | **Yes** |
+
+**How Q-loss works / Q-loss 的做法**
+
+```
+Q*_i(s_t, x_i) = E[pi_i,t | s_t, x_i] + rho * E[ max_{x'} Q*_i(s_{t+1}, x') | s_t, x_i ]   (IA.4.16)
+Q_loss(s)      = [ Q*_i(s, x*_i(s)) - Q*_i(s, x_i(s)) ] / Q*_i(s, x*_i(s))                (IA.4.17)
+```
+
+Design choices to reproduce exactly / 必须照搬的设计选择:
+
+- The rival is **held at its limit strategy** `x_j(s)` — the question is "given the
+  rival, what should I do." / 对手固定使用其极限策略。
+- The market maker uses the **measured** `gamma_0` and `lambda`, simple averages
+  of `gamma_0,t` and `lambda_t` over the `T = 100,000` measurement periods — not
+  theoretical values. / 做市商使用实测均值，非理论值。
+- Value function iteration on the **same grids** `P x V x V x X`; `rho < 1`
+  guarantees convergence by the contraction mapping theorem. / 在同一套网格上做
+  值函数迭代。
+- Q-loss is then averaged along a simulated equilibrium path with
+  `T_0 = 100,000` burn-in and `T = 1,000,000`. / 沿模拟均衡路径平均。
+
+**The paper's target numbers / 论文的目标数字**
+
+Low noise (`sigma_u = 10^-1`, `xi = 500`): **largest Q-loss 0.38%, average 0.27%**
+across `N_sim = 1,000` sessions — "indicating that the AI speculators' limit
+strategies are close to optimal strategies."
+
+The decomposition (IA.4.18) splits this into contemporaneous profit loss and
+continuation value loss. Reading the axes of Figure IA.8, the contemporaneous
+term is roughly +2% and the continuation term roughly -2%, netting to 0.27% —
+the numerical fingerprint of the price-trigger mechanism: deviating pays today
+and costs more tomorrow. ⚠️ Axis values are OCR-derived; read Figure IA.8 for
+exact numbers before quoting. / 分解约为当期 +2%、延续 -2%，净得 0.27%，即价格
+触发机制的数值指纹。⚠️ 轴数值来自 OCR，引用前须核对原图。
+
+**The genuine gap: high noise / 真正的空档：高噪声**
+
+Searching the full appendix, "Q-loss" appears **only** in §4.10 and **only** at
+`sigma_u = 10^-1`. The paper never reports Q-loss for the high-noise cell. /
+全文搜索 "Q-loss" 仅出现在 4.10 节且仅限低噪声；论文从未报告高噪声的 Q-loss。
+
+**Prediction / 预期**: over-pruning means the agents genuinely leave money on the
+table — given that the rival also under-trades, trading more should pay. So
+`Q_loss(high noise) >> 0.27%`. If confirmed, this separates the two mechanisms
+quantitatively **using the paper's own metric**. If instead it is also small,
+that is *more* interesting: over-pruning would be self-sustaining as a mutual
+best response, a subtler and stronger claim. **Both outcomes are publishable.** /
+两种结果都值得写。
+
+**Cost / 成本**
+
+Value function iteration over `31 * 10 * 10 * 15 = 46,500` entries with
+guaranteed contraction — seconds to minutes, not hours. Every input already
+exists: limit strategies in the checkpoint policy masks, `lambda` in
+`rows[:, COL_LAM]`, `gamma_0` recoverable from the measurement rows. / 所有输入
+均已具备，运行时间以秒计。
+
+**Why this now outranks the earlier framing / 为何优先级上升**
+
+This is no longer "a stronger test of our own design" but "something the paper
+did that we have not." A replication gap outranks a nice-to-have. Priority is now
+`I-14 > I-13 > I-12`, with I-13 carrying a built-in contribution (the high-noise
+cell) once the low-noise replication matches 0.27%. / 这已从「自创的更强检验」
+变为「论文做了而我们没做」。复现缺口优先于锦上添花。
+
+**Superseded content / 已作废的内容**
+
+The Monte-Carlo rollout design, its ~1.5e8-period cost estimate, and the claim
+of independence from the paper are withdrawn. The falsifiable chain onto I-05's
+`detectability()` survives and is strengthened: low-noise detectability ~0.95
+should coincide with low Q-loss (price-trigger is a genuine best response),
+high-noise detectability ~0.03 with high Q-loss (deviation is unpunished and
+profitable). / 蒙特卡洛设计与成本估计作废；与 I-05 的可证伪链条保留并加强。
+
+**Framing: off-path belief error is not a defect to repair / 立场：off-path 信念误差不是待修复的缺陷**
 
 Footnote 29's "approximately Nash, meaning **no local deviation** is preferred"
 invites the objection that off-path beliefs may be arbitrarily wrong. That
