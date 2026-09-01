@@ -277,6 +277,90 @@ for su in (0.1, 100.0):
 "
 ```
 
+### Exposition — why the grid matters at all / 阐述：网格为什么重要
+
+Keep this. It is the explanation to give a reader (or a co-author, or yourself in
+three months) before showing any number. / 保留此段：在给出任何数字之前，先用它向
+读者、合作者或三个月后的自己解释清楚。
+
+**Two grids, and why discretization exists / 两个网格及离散化的由来**
+
+Q-learning needs a *table*, and tables need integer indices, so every continuous
+quantity must be chopped into buckets. Two things get chopped: / Q-learning 需要
+一张表，表要用整数下标，因此所有连续量都必须切成格子。有两处需要切：
+
+1. **Action grid `X(v)` — 15 buckets.** The agent cannot choose an arbitrary
+   order size; it picks one of 15 aggressiveness levels, running from most
+   cartel-like (index 0) to most aggressive (index 14). / 动作网格：agent 不能选
+   任意订单量，只能从 15 档激进程度里挑一个。
+2. **Price grid `P(v)` — 31 buckets.** The state is
+   `s_t = (p_{t-1}, v_{t-1}, v_t)`, but `p_{t-1}` is a continuous real (0.99873…)
+   and cannot be a table index, so it is binned. / 价格网格：`p_{t-1}` 是连续
+   实数，无法作为下标，必须归入 31 个价格桶之一。
+
+**The key sentence / 关键句**
+
+> The agent does not remember the price — it remembers **which bucket the price
+> fell into**. / agent 记住的不是价格本身，而是**价格落在第几个桶**。
+
+Everything below follows from that one fact. / 以下一切都由这一点推出。
+
+**Why footnote 25 cares / 脚注 25 为何在意此事**
+
+Price-trigger collusion runs on detection and punishment: both agents trade
+conservatively, and if one cheats the other must be able to see it and retaliate.
+But **an agent cannot observe its rival's order.** The only thing it observes is
+the price, through `p_{t-1}` in its own state. So the causal chain is: / 价格触发
+式合谋依赖侦测与惩罚，但 agent **看不见对手的订单**，唯一能观察到的是价格：
+
+```
+rival cheats -> price moves -> price lands in a DIFFERENT bucket
+             -> the observing agent's state changes
+             -> it can condition on that, and punish
+```
+
+**And the failure mode / 失效情形**
+
+If the price move is too small to leave the current bucket, the observing agent's
+state `(p_{t-1}, v_{t-1}, v_t)` is **bit-for-bit identical** whether the rival
+cooperated or cheated. It is *mathematically incapable* of telling them apart, so
+no trigger strategy can exist — not "learns one badly", but cannot represent one
+at all. / 若价格变动不足以跨出当前桶，观察方的状态逐位相同，在数学上无法区分对手
+守规矩还是作弊；触发策略不是「学得差」，而是根本无法表示。
+
+**What the ratio measures / 比值在测什么**
+
+```
+        price move when ONE agent shifts ONE action step
+ratio = ------------------------------------------------
+                    width of ONE price bucket
+```
+
+- `ratio ~ 1` → one action step ~ one bucket → **cheating is visible** ✅
+- `ratio = 0.03` → one action step moves 3% of a bucket → crossing one bucket
+  would take ~33 action steps, but only 15 exist → **cheating is never visible** ❌
+
+**Why it collapses under high noise / 高噪声下为何崩溃**
+
+At `v = 1.674`: / 以 `v = 1.674` 为例：
+
+| | low noise `sigma_u=0.1` | high noise `sigma_u=100` |
+|---|---|---|
+| Numerator: price move per action step | 4.818e-3 | **4.818e-3** (identical) |
+| Denominator: price bucket width | 4.528e-3 | 3.586e-2 (**7.9x wider**) |
+| Ratio | 1.064 ✅ | 0.134 ❌ |
+
+**The numerator does not change at all. Only the denominator does.** The price
+grid must span where prices actually go, and the bounds in
+`session.py::build_grids` are `+/- 1.96 sigma_u`. Raising `sigma_u` from 0.1 to
+100 explodes the range by 1,000x, but there are still only `n_p = 31` buckets to
+cover it, so each bucket becomes enormous. Meanwhile the price move from one
+action step is `lambda * dx`, which **does not depend on `sigma_u` at all**. The
+signal stays the same size while the ruler's tick marks grow 8x coarser. /
+**分子完全不变，变的只有分母。** 价格网格必须覆盖 `+/- 1.96 sigma_u`，噪声放大
+1000 倍但仍只有 31 个桶；而一档动作造成的价格变动 `lambda * dx` 与 `sigma_u`
+无关。信号大小不变，尺子的刻度却粗了 8 倍。
+
 **Second use: this table quantifies the paper's own mechanism boundary /
 第二个用途：此表把论文自身的机制边界数值化**
 
