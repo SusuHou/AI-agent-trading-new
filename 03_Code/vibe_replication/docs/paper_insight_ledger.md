@@ -49,7 +49,7 @@ Status meanings / 状态含义:
 | I-03 | `Delta^C` amplifies profit error by roughly 8x | `VERIFIED` | Methodology (measurement) |
 | I-04 | The paper's own numbers validate our benchmark solver | `VERIFIED` | Replication validation |
 | I-05 | Footnote 25 holds exactly in low noise; A22 is vindicated | `VERIFIED` | Methodology (A22) |
-| I-06 | `T_c` has a constant hazard after exploration dies | `HYPOTHESIS` | Methodology / Appendix |
+| I-06 | `T_c` has a constant hazard after exploration dies (incl. worked example) | `HYPOTHESIS` | Methodology / Appendix |
 | I-07 | Censoring may be selection-biased toward low `Delta^C` | `HYPOTHESIS` | Results / Limitations |
 | I-08 | `beta` is an economic parameter, not a technical one | `VERIFIED` | Methodology + Discussion |
 | I-09 | `L^C` is near-deterministic under the baseline calibration | `VERIFIED` | Results (market quality) |
@@ -362,6 +362,87 @@ constant-hazard (exponential) waiting time produces naturally and a
 "learning-completes-at-a-typical-time" model does not. / 论文报告收敛期数从 2000 万
 到 500 亿，跨度 2500 倍；恒定风险率的指数等待时间自然产生这种跨度，而「学习在某个
 典型时刻完成」的模型不会。
+
+### Worked example for exposition / 用于论文阐述的数值例子
+
+Keep this. It is the clearest way to explain the mechanism to a reader in one
+page, and it regenerates in seconds. / 保留此例：它是用一页篇幅向读者讲清该机制的
+最清楚方式，且可在数秒内重新生成。
+
+**Setup.** One state, 15 actions, `alpha = 0.01`, update-target noise
+`sigma = 10`. Action 6 has the highest true value. / 单一状态、15 个动作。
+
+**Phase 1 — exploration alive.** All 15 actions keep being updated. After
+200,000 periods the table reads: / 探索存活期，15 个动作都在更新：
+
+```
+action  6 : Q = 100.036   <- argmax (the greedy action)
+action  5 : Q =  97.916
+action  7 : Q =  96.683
+action  4 : Q =  95.475
+```
+
+**Phase 2 — exploration dead.** At `t = 10^9`, `eps = e^-50 ~ 2e-22`. The agent
+picks action 6 every period, so **only `Q[s,6]` is ever updated again**. Actions
+0–5 and 7–14 are frozen at the values above, permanently. / 探索死亡后只有
+`Q[s,6]` 继续更新，其余永久冻结在上表数值。
+
+`Q[s,6]` is an EWMA of a *noisy* target, so it does not settle — it jitters
+forever with stationary
+`sd = sigma * sqrt(alpha/(2-alpha)) = 10 * 0.0709 = 0.709`
+(simulation over 2M steps gives 0.707). / `Q[s,6]` 是带噪目标的指数移动平均，
+永不停息地抖动。
+
+**The punchline / 关键句**
+
+> The moment `Q[s,6]` jitters below the frozen `Q[s,5] = 97.916`, the maximum
+> switches from action 6 to action 5 → the policy mask changed → the
+> million-period streak resets to zero.
+> / `Q[s,6]` 一旦抖到冻结的 `97.916` 以下，最大值就从动作 6 换成动作 5 →
+> 策略掩码改变 → 百万期连续计数归零。
+
+**Sensitivity to where the runner-up happened to freeze / 对冻结位置的敏感性**
+
+| Frozen runner-up | Lead | Flip rate per visit | `P(10^6 clean)` | Outcome |
+|---|---|---|---|---|
+| 99.20 | 1.1 sd | 1.2e-2 | 0 | never converges |
+| 98.60 | 2.0 sd | 3.1e-3 | 0 | never converges |
+| 97.90 | 3.0 sd | 2.8e-4 | 1e-123 | never converges |
+| 97.00 | 4.2 sd | 2.3e-6 | 0.097 | converges |
+
+A 3.0 sd lead never converges; a 4.2 sd lead converges. The entire difference is
+where one frozen number happened to land at the instant exploration died — pure
+luck. This is why `T_c` spans 2e7 to 5e10 across sessions. / 3.0 与 4.2 个标准差
+之间就是「永不收敛」与「能收敛」的分界；全部差别只是探索死亡瞬间某个冻结数字落在
+哪里。这解释了 `T_c` 跨越 2e7 至 5e10 的巨大离散。
+
+Regenerate / 重新生成:
+
+```bash
+python3 -c "
+import numpy as np
+alpha, sigma, N = 0.01, 10.0, 3_000_000
+sd = sigma*(alpha/(2-alpha))**0.5
+print('jitter sd =', round(sd,4))
+for runner in [99.2, 98.6, 97.9, 97.0]:
+    rng = np.random.default_rng(1); q, below, cross = 100.0, False, 0
+    for t in range(N):
+        q = (1-alpha)*q + alpha*(100.0 + rng.normal(0, sigma))
+        b = q < runner
+        if b and not below: cross += 1
+        below = b
+    rate = cross/N
+    p = np.exp(-rate*1e6) if rate*1e6 < 700 else 0.0
+    print(f'runner={runner}  lead={(100.0-runner)/sd:.2f}sd  rate={rate:.2e}  P={p:.3e}')
+"
+```
+
+⚠️ Illustrative, not a quantitative model of the real `T_c`. `sigma = 10` is
+assumed, the real system has 6,200 masks with uneven visit frequencies, and the
+continuation term couples states. Present it as an intuition pump, never as an
+estimate. / 仅为示意，非真实 `T_c` 的定量模型：`sigma` 系假设值，真实系统有 6,200
+个掩码、访问频率不均，且 continuation 项耦合各状态。写作时只能作为直觉说明，
+绝不可当作估计。
 
 **Outstanding / 待办**
 
