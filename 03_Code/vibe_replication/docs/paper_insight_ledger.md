@@ -56,6 +56,7 @@ Status meanings / 状态含义:
 | I-10 | The Grossman–Stiglitz inversion | `OPEN` | Discussion |
 | I-11 | Documentation lags the codebase | `HOUSEKEEPING` | — |
 | I-12 | No test that the converged outcome is an equilibrium | `OPEN` | Results / Appendix |
+| I-13 | Global deviation test doubles as an independent mechanism classifier | `OPEN` | Results — proposed contribution |
 
 ---
 
@@ -731,3 +732,93 @@ Decide whether this is in scope; if it is cut for time, say so explicitly in the
 limitations rather than leaving the equilibrium claim unsupported. / 实现前先读
 附录 4.2 与 4.10 的确切定义，不要自创检验再宣称与论文对应。若因时间放弃，应在局限
 章明确说明，而不是让均衡主张悬空。
+
+
+---
+
+## I-13 — Global deviation test doubles as an independent mechanism classifier / 全局偏离检验同时是一个独立的机制分类器
+
+- **Status / 状态**: `OPEN` — proposed extension, nothing run / 提议的扩展，尚未执行
+- **Date / 日期**: 2026-09-01
+- **Destination / 论文去处**: Results — candidate incremental contribution / 结果章，候选增量贡献
+
+**Framing first: this is not a defect to repair / 先立场：这不是待修复的缺陷**
+
+Footnote 29's "approximately Nash, meaning **no local deviation** is preferred"
+invites the objection that off-path beliefs may be arbitrarily wrong. That
+objection misreads the concept. Fershtman–Pakes experience-based equilibrium
+**explicitly permits** it (`paper_full_text.txt`, p.19): beliefs about off-path
+outcomes "need not align with expected discounted cash flows under the true
+distribution, allowing for significant biases." Requiring correct off-path
+beliefs would upgrade the concept to subgame-perfect Nash — under which the
+over-pruning mechanism cannot exist at all. Do not "fix" the locality; measure
+it. / 不要「修复」局部性，而要度量它。要求 off-path 信念正确等于换用子博弈完美
+Nash 均衡，而在该概念下过度剪枝机制根本不存在。
+
+**Proposed test / 提议的检验**
+
+At the convergence point, for each agent and **all** `n_x = 15` actions (not only
+neighbours), Monte-Carlo the *true* discounted value under both agents' actual
+policies, then report three things: / 在收敛点上对**全部** 15 个动作做蒙特卡洛
+rollout，报告三项：
+
+| Test | Question | Interpretation |
+|---|---|---|
+| On-path consistency | Does `Q[s,a*]` equal the true discounted value? | Yes → valid experience-based equilibrium |
+| Off-path gap | How far is `Q[s,a]` from the true value? | **This gap is the size of the "artificial stupidity" — report it directly** |
+| Global optimality | Is `a*` the action with the highest *true* value? | No → the agents are leaving money on the table |
+
+**Why it classifies mechanisms / 为何它能分类机制**
+
+The two mechanisms behave **oppositely** under this test: / 两个机制表现相反：
+
+- **Price-trigger**: the deviation is detected and punished, so its true
+  discounted value is *lower*; `a*` genuinely is a best response. **The global
+  test passes — it really is a Nash equilibrium.** / 偏离被侦测并惩罚，真实折现
+  价值更低，全局检验**通过**，确为 Nash 均衡。
+- **Over-pruning**: the opponent cannot detect the deviation and does not punish,
+  so its true value is *higher* — but the frozen `Q` hides this. **The global
+  test fails — this is not a Nash equilibrium; the agents are simply wrong.** /
+  对手无法侦测、不会惩罚，真实价值更高但被冻结的 `Q` 掩盖，全局检验**失败**，
+  这根本不是 Nash 均衡。
+
+**Falsifiable prediction chaining onto I-05 / 与 I-05 串联的可证伪预测**
+
+```
+low noise : detectability ~ 0.95+  ->  punishment feasible    ->  price-trigger  ->  global test should PASS
+high noise: detectability ~ 0.03   ->  punishment infeasible  ->  over-pruning   ->  global test should FAIL
+```
+
+If this holds, three **independent** lines of evidence converge on the same
+mechanism assignment: the grid detectability measurement (I-05,
+`dgj/diagnostics.py`), the IRF classification (Steps 35D–35F), and this test.
+That is far stronger before a referee than any single metric. / 若成立，则三条
+独立证据线指向同一机制归属，在审稿人面前远强于任何单一指标。
+
+**Cost / 成本**
+
+No retraining. Q tables, policy masks, market state and all seven RNG streams
+are preserved in the Step-35A checkpoint. Order of magnitude: 1,000 rollouts x
+~100-period effective horizon (`rho = 0.95`) x 15 actions x ~50 sampled on-path
+states x 2 agents ~ 1.5e8 periods, roughly 5% of one training session. / 无需
+重训；约为一个训练 session 的 5%。
+
+**Near-free preliminary diagnostic / 几乎免费的先导诊断**
+
+Before any rollout: compare the converged frozen `Q[s,a]` against the initial
+`Q_0(s,a)` from `initial_q_block()`, which is the analytic benchmark value under
+Nash pricing. Actions whose frozen value sits far below `Q_0` are the pruned
+ones. Counting how many and by how much yields an over-pruning intensity measure
+from a single NumPy operation, with no simulation. / 先把收敛后的冻结 `Q[s,a]`
+与解析的初始 `Q_0(s,a)` 相比；远低于 `Q_0` 的动作即被剪枝的动作。一次 NumPy 运算
+即得剪枝强度指标，无需任何模拟。
+
+**Outstanding / 待办**
+
+⚠️ Read Online Appendix 4.2 and 4.10 for the exact test definitions **before**
+implementing. Designing an independent test and then claiming correspondence
+with the paper's is the kind of thing a referee catches immediately. Either
+reproduce the paper's tests, or state plainly that this is a **stronger test of
+our own design** and say why. / 实现**之前**先读附录 4.2 与 4.10 的确切定义。
+自创检验再宣称与论文一致，是审稿人一眼看穿的问题：要么复现论文的检验，要么明确
+声明这是**我们自己设计的更强检验**并说明理由。
