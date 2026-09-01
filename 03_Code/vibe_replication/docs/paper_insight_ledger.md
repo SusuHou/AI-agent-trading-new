@@ -55,6 +55,7 @@ Status meanings / 状态含义:
 | I-09 | `L^C` is near-deterministic under the baseline calibration | `VERIFIED` | Results (market quality) |
 | I-10 | The Grossman–Stiglitz inversion | `OPEN` | Discussion |
 | I-11 | Documentation lags the codebase | `HOUSEKEEPING` | — |
+| I-12 | No test that the converged outcome is an equilibrium | `OPEN` | Results / Appendix |
 
 ---
 
@@ -247,6 +248,16 @@ defined by `P`."
 | 1.126 | 0.126 | 1.033 | 0.028 |
 | 1.674 | 0.674 | 1.064 | 0.134 |
 | 2.645 | 1.645 | 1.068 | 0.278 |
+
+Already formalized in the codebase / 代码中已有正式实现:
+`dgj/diagnostics.py::detectability()` runs a Monte Carlo over
+`(v, own action, opponent action, u)` and reports how often a one-step opponent
+deviation changes `price_to_index`. Three tests in `tests/test_detectability.py`
+pin the behaviour: the global grid hides deviations at low noise
+(`overall < 0.15`), the per-value grid reveals them (`overall > 0.95`), and both
+grids hide them at high noise. Cite `detectability()` rather than the ad-hoc
+ratio when writing this up. / `detectability()` 已实现并有三个测试固定其行为；
+写作时应引用该函数而非临时算出的比值。
 
 Reproduce / 复现:
 
@@ -583,3 +594,59 @@ Three concrete defects observed / 三处具体缺陷:
    the recovery has since completed, no record of it exists in the repository. /
    文档中反复引用的 822/178 描述的是**首轮带上限的实验**；若恢复运行已完成，仓库
    内没有任何记录。
+
+
+---
+
+## I-12 — No test that the converged outcome is an equilibrium / 尚未检验收敛结果是否构成均衡
+
+- **Status / 状态**: `OPEN`
+- **Date / 日期**: 2026-09-01
+- **Destination / 论文去处**: Results / Appendix — referee-anticipation / 结果或附录章，预备审稿人质询
+
+**Claim / 论点**
+
+The replication measures how profitable the converged strategies are
+(`Delta^C`), what they do (`chi_hat`, IRF), and what they imply for market
+quality — but never tests whether the converged outcome **is an equilibrium**.
+Without that test, "the AI learned a collusive *equilibrium*" is strictly only
+"the AI learned a high-profit *strategy*." / 本复现测量了收敛策略的盈利性、行为与
+市场质量含义，但从未检验收敛结果**是否构成均衡**。缺少该检验时，「AI 学到了合谋
+**均衡**」严格来说只能说成「AI 学到了高利润**策略**」。
+
+**What the paper does / 论文做了什么**
+
+- Footnote 29: "numerical tests suggest that this AI collusive equilibrium is
+  **approximately Nash**, meaning **no local deviation** is preferred."
+  Details in Online Appendix 4.10.
+- Footnote 30: outcomes are classified as an **experience-based equilibrium**
+  using the formal tests of Fershtman and Pakes (2012). Details in Online
+  Appendix 4.2, headed "Testing If Outcomes Form An Experience-Based
+  Equilibrium."
+
+**What we have / 我们有什么**
+
+Neither test exists. `dgj_sim` implements `metrics/collusion.py`,
+`metrics/market_quality.py`, `metrics/trading_policy.py`, and `game/irf.py`;
+`vibe_replication` covers Steps 01–36G and 35A–35F. No equilibrium test in
+either. / 两个检验都不存在。
+
+**Why this is tractable / 为何可行**
+
+The local-deviation test is cheap: Q tables, policy masks, market state, and RNG
+states are all preserved in the Step-35A checkpoint. For each agent at the
+convergence point, probe neighbouring actions and check whether realized profit
+rises. No retraining is required. The Fershtman–Pakes consistency test is more
+involved — it compares on-path evaluations against expected discounted cash
+flows under the true distribution — but also runs off saved checkpoints. /
+局部偏离检验很便宜：Q 表、策略掩码、市场状态与随机流都保存在 Step-35A checkpoint
+中；只需在收敛点上逐一试探相邻动作，无需重跑训练。
+
+**Outstanding / 待办**
+
+Read Online Appendix 4.2 and 4.10 for the exact test definitions before
+implementing — do not invent a test and claim correspondence with the paper's.
+Decide whether this is in scope; if it is cut for time, say so explicitly in the
+limitations rather than leaving the equilibrium claim unsupported. / 实现前先读
+附录 4.2 与 4.10 的确切定义，不要自创检验再宣称与论文对应。若因时间放弃，应在局限
+章明确说明，而不是让均衡主张悬空。
