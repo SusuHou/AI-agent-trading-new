@@ -265,15 +265,41 @@ for su in (0.1, 100.0):
 "
 ```
 
-The high-noise ratios of 0.03–0.28 mean the price state cannot resolve a
-unilateral deviation there — which is exactly the over-pruning region the paper
-describes, so this is expected rather than a defect. / 高噪声下 0.03–0.28 意味着
-价格状态无法分辨单边偏离，这正是论文描述的过度剪枝区域，属预期而非缺陷。
+**Second use: this table quantifies the paper's own mechanism boundary /
+第二个用途：此表把论文自身的机制边界数值化**
+
+Proposition 3.1 states that price-trigger collusion is theoretically infeasible
+under high noise because noise destroys the price's ability to reveal
+deviations. The paper's wording (`docs/paper_full_text.txt:205`): noise reduces
+"informativeness and **rendering prices ineffective for detecting deviations**."
+
+The ratio measures exactly that capability. A price-trigger strategy requires a
+rival's one-step deviation to move the realized price into a *different* price
+bucket; otherwise the observing agent's state `(p_{t-1}, v_{t-1}, v_t)` is
+bit-for-bit identical whether the rival cooperated or cheated, and no trigger
+strategy can condition on the deviation. The high-noise ratios of 0.03–0.28 say
+the price state falls short of that resolution by a factor of 3 to 30. /
+价格触发策略要求对手挪动一档动作后，实际价格落入**不同**的价格桶；否则观察方的
+状态逐位相同，触发策略无从条件化。高噪声下 0.03–0.28 表示价格状态的分辨率不足
+3 至 30 倍。
+
+The mechanism is transparent in the arithmetic: the numerator (`lambda * dx`,
+the price move from one action step) does not depend on `sigma_u` at all, while
+the denominator (bucket width) must stretch to cover `+/- 1.96 sigma_u` with only
+`n_p = 31` buckets. At `v = 1.674` the numerator is 4.818e-3 in **both** cells;
+the bucket widens from 4.528e-3 to 3.586e-2, a factor of 7.9. / 机制在算术上一目
+了然：分子与 `sigma_u` 无关，分母却必须用 31 个桶覆盖 `+/- 1.96 sigma_u`。
+
+This makes the table a publishable numerical counterpart to a proposition the
+paper argues only in theory. / 因此该表是论文仅以理论论证的命题的可发表数值对应物。
 
 **Outstanding / 待办**
 
-None. Quote this table in the methodology section as the defence of A22. /
-无。在方法章直接引用此表作为 A22 的辩护。
+Quote the table in the methodology section as the defence of A22, and consider a
+second use in the results or discussion as the measured counterpart to
+Proposition 3.1. Verify against Proposition 3.1's exact statement before
+claiming correspondence. / 在方法章引用此表作为 A22 的辩护；并考虑在结果或讨论章
+作为 Proposition 3.1 的实测对应物再次使用。宣称对应关系前须核对该命题原文。
 
 ---
 
