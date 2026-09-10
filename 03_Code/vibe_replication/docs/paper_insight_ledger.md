@@ -1,0 +1,1097 @@
+# Paper Insight Ledger / 论文灵感台账
+
+Working notes captured **while** the research happens, indexed by where each
+item is expected to land in the written paper. This is not a results file and
+not a validation log — it is the place where an observation is recorded before
+it is lost. / 研究进行中随手记录的洞见，按其在论文中的预期去处编号。这不是结果
+文件，也不是验证日志；它的作用是在洞见丢失之前先把它记下来。
+
+- Validation Q&A belongs in [`learning_log.md`](learning_log.md).
+- Implementation decisions belong in [`00_paper_to_code_checklist.md`](00_paper_to_code_checklist.md) (A1–A24).
+- Run receipts and campaign history belong in [`experiments/`](experiments/).
+- 验证问答见 `learning_log.md`；实现决定见 A1–A24 核对表；运行记录见 `experiments/`。
+
+## How to add an entry / 记录格式
+
+Copy the template. Keep the status label honest — an entry that overstates its
+evidence is worse than no entry. / 复制模板；状态标签必须诚实，夸大证据的条目比
+没有条目更糟。
+
+```markdown
+## I-NN — Short title / 简短标题
+
+- **Status / 状态**: `VERIFIED` | `HYPOTHESIS` | `OPEN` | `HOUSEKEEPING`
+- **Date / 日期**:
+- **Destination / 论文去处**:
+
+**Claim / 论点**
+
+**Evidence / 证据**  (file:line, command, or number — never "I recall that")
+
+**Outstanding / 待办**
+```
+
+Status meanings / 状态含义:
+
+| Label | Meaning / 含义 |
+|---|---|
+| `VERIFIED` | Reproduced from data or paper text in this repo / 已从本仓库的数据或论文原文复现 |
+| `HYPOTHESIS` | Mechanism is plausible and a concrete test is named, but not run / 机制合理且已指明检验方法，但尚未执行 |
+| `OPEN` | Idea worth developing; no evidence yet / 值得发展的想法，尚无证据 |
+| `HOUSEKEEPING` | Repo/documentation defect, not a research finding / 仓库或文档缺陷，非研究发现 |
+
+## Index / 索引
+
+| ID | Title / 标题 | Status | Destination / 去处 |
+|---|---|---|---|
+| I-01 | High-noise cell replicates on three independent quantities | `VERIFIED` | Results |
+| I-02 | Low-noise cell does not reproduce the paper's `Delta^C` | `VERIFIED` | Results / Limitations |
+| I-03 | `Delta^C` amplifies profit error by roughly 8x | `VERIFIED` | Methodology (measurement) |
+| I-04 | The paper's own numbers validate our benchmark solver | `VERIFIED` | Replication validation |
+| I-05 | Footnote 25 holds exactly in low noise; A22 is vindicated | `VERIFIED` | Methodology (A22) |
+| I-06 | `T_c` has a constant hazard after exploration dies (incl. worked example) | `HYPOTHESIS` | Methodology / Appendix |
+| I-07 | Censoring may be selection-biased toward low `Delta^C` | `HYPOTHESIS` | Results / Limitations |
+| I-08 | `beta` is an economic parameter, not a technical one | `VERIFIED` | Methodology + Discussion |
+| I-09 | `L^C` is near-deterministic under the baseline calibration | `VERIFIED` | Results (market quality) |
+| I-10 | The Grossman–Stiglitz inversion | `OPEN` | Discussion |
+| I-11 | Documentation lags the codebase | `HOUSEKEEPING` | — |
+| I-12 | No test that the converged outcome is an equilibrium | `OPEN` | Results / Appendix |
+| I-13 | **CORRECTED** — the paper already runs the global test (Q-loss, OA 4.10); the gap is high noise | `OPEN` | Results — replication gap + contribution |
+| **I-14** | **No negative control: the engine has never been shown to produce zero collusion** | `OPEN` | **Results — highest priority** |
+
+---
+
+## I-01 — High-noise cell replicates on three independent quantities / 高噪声环境在三个独立数字上复现成功
+
+- **Status / 状态**: `VERIFIED`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Results — replication validation / 结果章，复现验证
+
+**Claim / 论点**
+
+The `sigma_u = 10^2` cell reproduces the paper's reported profit decomposition
+to within 2% on three quantities that are not free parameters and are not
+mechanically linked to one another. / `sigma_u = 10^2` 环境在三个既非自由参数、
+彼此也无机械联系的数字上，与论文报告的利润分解吻合到 2% 以内。
+
+**Evidence / 证据**
+
+Paper (`docs/paper_full_text.txt:2195–2197`): "each informed AI speculator earns
+about 54 on average, derived from average losses of 88 from information-
+insensitive investors and 20 from noise traders. Market makers again break even."
+
+| Quantity / 数量 | Paper / 论文 | `pilot_exact_per_value_sigma_u_100` |
+|---|---|---|
+| Speculator profit / 投机者利润 | ~54 | 53.41, 53.34 |
+| Investor loss / 投资者损失 | ~88 | 86.59 |
+| Noise-trader loss / 噪声交易者损失 | ~20 | 20.16 |
+
+Reproduce / 复现:
+
+```bash
+cd 03_Code/dgj_sim && python3 -c "
+import numpy as np
+r = np.load('outputs/pilot_exact_per_value_sigma_u_100/session_0000.npz')['rows']
+v, u, p, z = r[:,0], r[:,1], r[:,3], r[:,5]
+print('speculator', r[:,8].mean(), r[:,9].mean())
+print('investors ', (z*(v-p)).mean())
+print('noise     ', (u*(v-p)).mean())
+"
+```
+
+**Outstanding / 待办**
+
+Single-session pilot. Confirm against the full 1,000-session high-noise cohort
+before this wording enters the paper. / 目前只是单 session pilot；写入论文前须以
+完整 1,000 session 高噪声队列确认。
+
+---
+
+## I-02 — Low-noise cell does not reproduce the paper's `Delta^C` / 低噪声环境未能复现论文的合谋指标
+
+- **Status / 状态**: `VERIFIED`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Results / Limitations / 结果章与局限章
+
+**Claim / 论点**
+
+At `sigma_u = 10^-1` the paper reports `Delta^C ~ 0.75`; our sessions produce
+0.32–0.42. Profit *levels* are within ~6%, but the normalized statistic is off
+by a factor of 2.3. / 在 `sigma_u = 10^-1` 下论文报告 `Delta^C ~ 0.75`，我们得到
+0.32–0.42。利润**水平**只差约 6%，但标准化指标差了 2.3 倍。
+
+**Evidence / 证据**
+
+Paper (`docs/paper_full_text.txt:1578–1582`): "low noise trading risk
+(specifically, `sigma_u = 10^-1`), the average value of `Delta^C` ... is
+approximately 0.75 ... average trading profits that are about 10% higher than
+those in the non-collusive equilibrium benchmark."
+Paper (`:2190–2192`): "each informed AI speculator earns an average profit of
+approximately 54, totaling a loss of about 108 for information-insensitive
+investors."
+
+| Quantity | Paper | Our pilot | 1,000-session mixed campaign |
+|---|---|---|---|
+| `Delta^C` | ~0.75 | 0.319 / 0.356 | 0.4156 (diagnostic only) |
+| Profit / 利润 | ~54 | 50.65, 50.81 | — |
+| Investor loss | ~108 | 101.42 | — |
+| Gain vs Nash | ~10% | 4.0% | — |
+| Noise trader | ~0 | 0.0002 | — |
+
+**Outstanding / 待办**
+
+Do not write this up as "failed to replicate" until I-07 is tested. The
+censoring-selection explanation would resolve it without any code defect. /
+在 I-07 检验完成前，不要写成「复现失败」；删失选择性偏差可以在不存在代码缺陷的
+情况下解释这个差距。
+
+---
+
+## I-03 — `Delta^C` amplifies profit error by roughly 8x / 合谋指标把利润误差放大约八倍
+
+- **Status / 状态**: `VERIFIED`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Methodology — measurement properties / 方法章，指标性质
+
+**Claim / 论点**
+
+Under the baseline calibration the entire Nash-to-cartel profit window is only
+12.5% of the profit level. `Delta^C` therefore divides by a very small number,
+and a 1% error in realized profit becomes 0.083 of `Delta^C`. This is a property
+of the estimand, not of any implementation. / 基准校准下，Nash 到 cartel 的整个
+利润区间只有利润水平的 12.5%。`Delta^C` 因此除以一个很小的数：利润上 1% 的误差
+会变成 `Delta^C` 上 0.083 的误差。这是指标本身的性质，与实现无关。
+
+**Evidence / 证据**
+
+Backed out of `pilot_exact_per_value_sigma_u_0p1/summary.json`
+(`delta_c = 0.31922098`, `profit_gain_vs_nash = 1.03990315`, mean profit
+50.73015):
+
+```
+pi^N          = 50.73015 / 1.03990315 = 48.7835
+pi^M - pi^N   = (50.73015 - 48.7835) / 0.31922098 = 6.0982
+pi^M          = 54.8817
+window / pi^N = 6.0982 / 48.7835 = 12.5%
+```
+
+Cross-checked against the closed forms `pi^N = sigma_v_hat^2 / ((I+1)^2 lambda^N)`
+= 48.88 and `pi^M = sigma_v_hat^2 / (4 I lambda^M)` = 54.99. / 与闭式解交叉验证一致。
+
+Amplification / 放大倍数: reaching `Delta^C = 0.75` requires profit 53.3572,
+i.e. +5.18%. So `0.4308 / 0.0518 = 8.3x`.
+
+**Outstanding / 待办**
+
+Worth a short methodological paragraph regardless of how I-02 resolves — it
+tells any future replicator that `Delta^C` is a fragile target. / 无论 I-02 如何
+收场都值得写一段方法论说明：它提醒后续复现者 `Delta^C` 是一个脆弱的目标。
+
+---
+
+## I-04 — The paper's own numbers validate our benchmark solver / 论文自身的数字反过来验证了我们的基准求解器
+
+- **Status / 状态**: `VERIFIED`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Replication validation / 复现验证
+
+**Claim / 论点**
+
+Feeding the paper's reported low-noise profit (~54) into *our independently
+solved* benchmarks yields `Delta^C ~ 0.80`, consistent with the paper's reported
+0.75 to within rounding. The Nash and cartel fixed-point solvers are therefore
+correct; the discrepancy in I-02 lies in the learned policy, not the benchmarks.
+/ 把论文报告的低噪声利润（约 54）代入**我们独立求解**的基准，得到
+`Delta^C ~ 0.80`，与论文的 0.75 在舍入范围内一致。因此 Nash 与 cartel 不动点
+求解器是正确的；I-02 的差距出在学到的策略上，不在基准上。
+
+**Evidence / 证据**
+
+`(54 - 48.7835) / 6.0982 = 0.855`; using the paper's "+10% over Nash" instead,
+`48.7835 * 1.10 = 53.66` gives `(53.66 - 48.7835) / 6.0982 = 0.80`.
+
+**Outstanding / 待办**
+
+None. This is a clean positive result and should be stated explicitly — it
+narrows the search space for I-02. / 无。这是一个干净的正面结果，应明确写出，它
+缩小了 I-02 的排查范围。
+
+---
+
+## I-05 — Footnote 25 holds exactly in low noise; A22 is vindicated / 脚注 25 在低噪声下精确成立，A22 选择得到验证
+
+- **Status / 状态**: `VERIFIED`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Methodology — defends decision A22 / 方法章，为 A22 辩护
+
+**Claim / 论点**
+
+The paper's footnote 25 requires that a one-grid-point change in one
+speculator's order move the price by one price-grid point. Under the
+**per-value** grid `P(v_k)` this holds to within 7% at every value point in the
+low-noise cell. The pooled global grid does not achieve this. A22 was the right
+call and the price grid is **not** the cause of I-02. / 论文脚注 25 要求一位投机者
+改变一档订单时，价格恰好移动一个价格档位。在**按价值划分**的网格 `P(v_k)` 下，
+低噪声环境的每一个价值点都在 7% 误差内满足该性质；全局合并网格做不到。A22 的
+选择是对的，价格网格**不是** I-02 的原因。
+
+**Evidence / 证据**
+
+Paper (`docs/paper_full_text.txt:1245`, footnote 25): "Our choice of `n_p ~ 2 n_x`
+ensures that, all else equal, a one-grid point change in one informed AI
+speculator's order flow will result in a change in price `p_t` over the grid
+defined by `P`."
+
+| `v` | `|v - v_bar|` | low noise ratio | high noise ratio |
+|---|---|---|---|
+| -0.645 | 1.645 | 1.068 | 0.278 |
+| 0.326 | 0.674 | 1.064 | 0.134 |
+| 0.874 | 0.126 | 1.033 | 0.028 |
+| 1.126 | 0.126 | 1.033 | 0.028 |
+| 1.674 | 0.674 | 1.064 | 0.134 |
+| 2.645 | 1.645 | 1.068 | 0.278 |
+
+Already formalized in the codebase / 代码中已有正式实现:
+`dgj/diagnostics.py::detectability()` runs a Monte Carlo over
+`(v, own action, opponent action, u)` and reports how often a one-step opponent
+deviation changes `price_to_index`. Three tests in `tests/test_detectability.py`
+pin the behaviour: the global grid hides deviations at low noise
+(`overall < 0.15`), the per-value grid reveals them (`overall > 0.95`), and both
+grids hide them at high noise. Cite `detectability()` rather than the ad-hoc
+ratio when writing this up. / `detectability()` 已实现并有三个测试固定其行为；
+写作时应引用该函数而非临时算出的比值。
+
+Reproduce / 复现:
+
+```bash
+cd 03_Code/dgj_sim && python3 -c "
+from dgj.config import ExperimentCell
+from dgj.game.session import build_grids
+for su in (0.1, 100.0):
+    g = build_grids(ExperimentCell().with_parameters(noise_std=su))
+    step = g.multipliers[1] - g.multipliers[0]
+    print(f'sigma_u={su}')
+    for k in range(10):
+        dp_grid = g.price_grid[k,1] - g.price_grid[k,0]
+        dp_act  = g.nash.price_impact * (g.value_grid[k] - 1.0) * step
+        print(f'  v={g.value_grid[k]:7.3f}  ratio={abs(dp_act/dp_grid):.3f}')
+"
+```
+
+### Exposition — why the grid matters at all / 阐述：网格为什么重要
+
+Keep this. It is the explanation to give a reader (or a co-author, or yourself in
+three months) before showing any number. / 保留此段：在给出任何数字之前，先用它向
+读者、合作者或三个月后的自己解释清楚。
+
+**Two grids, and why discretization exists / 两个网格及离散化的由来**
+
+Q-learning needs a *table*, and tables need integer indices, so every continuous
+quantity must be chopped into buckets. Two things get chopped: / Q-learning 需要
+一张表，表要用整数下标，因此所有连续量都必须切成格子。有两处需要切：
+
+1. **Action grid `X(v)` — 15 buckets.** The agent cannot choose an arbitrary
+   order size; it picks one of 15 aggressiveness levels, running from most
+   cartel-like (index 0) to most aggressive (index 14). / 动作网格：agent 不能选
+   任意订单量，只能从 15 档激进程度里挑一个。
+2. **Price grid `P(v)` — 31 buckets.** The state is
+   `s_t = (p_{t-1}, v_{t-1}, v_t)`, but `p_{t-1}` is a continuous real (0.99873…)
+   and cannot be a table index, so it is binned. / 价格网格：`p_{t-1}` 是连续
+   实数，无法作为下标，必须归入 31 个价格桶之一。
+
+**The key sentence / 关键句**
+
+> The agent does not remember the price — it remembers **which bucket the price
+> fell into**. / agent 记住的不是价格本身，而是**价格落在第几个桶**。
+
+Everything below follows from that one fact. / 以下一切都由这一点推出。
+
+**Why footnote 25 cares / 脚注 25 为何在意此事**
+
+Price-trigger collusion runs on detection and punishment: both agents trade
+conservatively, and if one cheats the other must be able to see it and retaliate.
+But **an agent cannot observe its rival's order.** The only thing it observes is
+the price, through `p_{t-1}` in its own state. So the causal chain is: / 价格触发
+式合谋依赖侦测与惩罚，但 agent **看不见对手的订单**，唯一能观察到的是价格：
+
+```
+rival cheats -> price moves -> price lands in a DIFFERENT bucket
+             -> the observing agent's state changes
+             -> it can condition on that, and punish
+```
+
+**And the failure mode / 失效情形**
+
+If the price move is too small to leave the current bucket, the observing agent's
+state `(p_{t-1}, v_{t-1}, v_t)` is **bit-for-bit identical** whether the rival
+cooperated or cheated. It is *mathematically incapable* of telling them apart, so
+no trigger strategy can exist — not "learns one badly", but cannot represent one
+at all. / 若价格变动不足以跨出当前桶，观察方的状态逐位相同，在数学上无法区分对手
+守规矩还是作弊；触发策略不是「学得差」，而是根本无法表示。
+
+**What the ratio measures / 比值在测什么**
+
+```
+        price move when ONE agent shifts ONE action step
+ratio = ------------------------------------------------
+                    width of ONE price bucket
+```
+
+- `ratio ~ 1` → one action step ~ one bucket → **cheating is visible** ✅
+- `ratio = 0.03` → one action step moves 3% of a bucket → crossing one bucket
+  would take ~33 action steps, but only 15 exist → **cheating is never visible** ❌
+
+**Why it collapses under high noise / 高噪声下为何崩溃**
+
+At `v = 1.674`: / 以 `v = 1.674` 为例：
+
+| | low noise `sigma_u=0.1` | high noise `sigma_u=100` |
+|---|---|---|
+| Numerator: price move per action step | 4.818e-3 | **4.818e-3** (identical) |
+| Denominator: price bucket width | 4.528e-3 | 3.586e-2 (**7.9x wider**) |
+| Ratio | 1.064 ✅ | 0.134 ❌ |
+
+**The numerator does not change at all. Only the denominator does.** The price
+grid must span where prices actually go, and the bounds in
+`session.py::build_grids` are `+/- 1.96 sigma_u`. Raising `sigma_u` from 0.1 to
+100 explodes the range by 1,000x, but there are still only `n_p = 31` buckets to
+cover it, so each bucket becomes enormous. Meanwhile the price move from one
+action step is `lambda * dx`, which **does not depend on `sigma_u` at all**. The
+signal stays the same size while the ruler's tick marks grow 8x coarser. /
+**分子完全不变，变的只有分母。** 价格网格必须覆盖 `+/- 1.96 sigma_u`，噪声放大
+1000 倍但仍只有 31 个桶；而一档动作造成的价格变动 `lambda * dx` 与 `sigma_u`
+无关。信号大小不变，尺子的刻度却粗了 8 倍。
+
+**Second use: this table quantifies the paper's own mechanism boundary /
+第二个用途：此表把论文自身的机制边界数值化**
+
+Proposition 3.1 states that price-trigger collusion is theoretically infeasible
+under high noise because noise destroys the price's ability to reveal
+deviations. The paper's wording (`docs/paper_full_text.txt:205`): noise reduces
+"informativeness and **rendering prices ineffective for detecting deviations**."
+
+The ratio measures exactly that capability. A price-trigger strategy requires a
+rival's one-step deviation to move the realized price into a *different* price
+bucket; otherwise the observing agent's state `(p_{t-1}, v_{t-1}, v_t)` is
+bit-for-bit identical whether the rival cooperated or cheated, and no trigger
+strategy can condition on the deviation. The high-noise ratios of 0.03–0.28 say
+the price state falls short of that resolution by a factor of 3 to 30. /
+价格触发策略要求对手挪动一档动作后，实际价格落入**不同**的价格桶；否则观察方的
+状态逐位相同，触发策略无从条件化。高噪声下 0.03–0.28 表示价格状态的分辨率不足
+3 至 30 倍。
+
+The mechanism is transparent in the arithmetic: the numerator (`lambda * dx`,
+the price move from one action step) does not depend on `sigma_u` at all, while
+the denominator (bucket width) must stretch to cover `+/- 1.96 sigma_u` with only
+`n_p = 31` buckets. At `v = 1.674` the numerator is 4.818e-3 in **both** cells;
+the bucket widens from 4.528e-3 to 3.586e-2, a factor of 7.9. / 机制在算术上一目
+了然：分子与 `sigma_u` 无关，分母却必须用 31 个桶覆盖 `+/- 1.96 sigma_u`。
+
+This makes the table a publishable numerical counterpart to a proposition the
+paper argues only in theory. / 因此该表是论文仅以理论论证的命题的可发表数值对应物。
+
+**Outstanding / 待办**
+
+Quote the table in the methodology section as the defence of A22, and consider a
+second use in the results or discussion as the measured counterpart to
+Proposition 3.1. Verify against Proposition 3.1's exact statement before
+claiming correspondence. / 在方法章引用此表作为 A22 的辩护；并考虑在结果或讨论章
+作为 Proposition 3.1 的实测对应物再次使用。宣称对应关系前须核对该命题原文。
+
+---
+
+## I-06 — `T_c` has a constant hazard after exploration dies / 探索消失后收敛风险率恒定
+
+- **Status / 状态**: `HYPOTHESIS`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Methodology / Appendix — justifies survival treatment / 方法章或附录，为生存分析辩护
+
+**Claim / 论点**
+
+Convergence time is not a "wait until learning finishes" process. It is a
+memoryless waiting time, so `T_c` should be approximately exponential. / 收敛时间
+不是「等到学习完成」的过程，而是一个无记忆等待时间，因此 `T_c` 应近似服从指数分布。
+
+**Mechanism / 机制**
+
+1. `exploration_rate()` depends **only** on the visit count — no `Q` values. With
+   `beta = 5e-7` and `t(v) ~ t/10`, the effective rate is `5e-8`, so at
+   `t = 10^9`, `eps = e^-50 ~ 2e-22`. Exploration is finished. / 探索率只依赖访问
+   次数，与 `Q` 无关；`t = 10^9` 时 `eps ~ 2e-22`，探索彻底结束。
+2. `q_learning.update` writes **one cell**. Once `a*` is fixed, the other
+   `n_x - 1` actions' `Q` values are frozen permanently. / 更新只写一个格子；`a*`
+   固定后，其余动作的 `Q` 永久冻结。
+3. The greedy action's `Q` is an EWMA of a *noisy* target (`u_t` is redrawn each
+   period), so it never settles. Stationary jitter
+   `sd = sigma_target * sqrt(alpha/(2-alpha)) = 0.0709 sigma_target`
+   (simulated 0.0707 over 2M steps). / 贪心动作的 `Q` 是带噪目标的指数移动平均，
+   永不收敛，稳定抖动标准差为 `0.0709 sigma_target`。
+4. A flip is that jitter crossing below a frozen runner-up. Both the jitter and
+   the frozen values are constant, so the per-visit flip probability is a
+   **constant**. / 翻转即抖动下穿冻结的次优值；两者皆为常数，故每次访问的翻转
+   概率恒定。
+
+The knife-edge is near a 4-sd lead / 临界点约在 4 个标准差:
+
+| Lead / 领先差距 | Flip rate per visit | `P(10^6 clean)` |
+|---|---|---|
+| 1.1 sd | 1.2e-2 | 0 |
+| 2.0 sd | 3.1e-3 | 0 |
+| 3.0 sd | 2.8e-4 | 1e-123 |
+| 4.2 sd | 2.3e-6 | 0.097 |
+
+**Consistency check / 一致性核对**
+
+Paper (`docs/paper_full_text.txt:1256–1258`): "convergence occurs within a range
+of approximately 20 million to 50 billion periods" — a 2,500x spread, which a
+constant-hazard (exponential) waiting time produces naturally and a
+"learning-completes-at-a-typical-time" model does not. / 论文报告收敛期数从 2000 万
+到 500 亿，跨度 2500 倍；恒定风险率的指数等待时间自然产生这种跨度，而「学习在某个
+典型时刻完成」的模型不会。
+
+### Worked example for exposition / 用于论文阐述的数值例子
+
+Keep this. It is the clearest way to explain the mechanism to a reader in one
+page, and it regenerates in seconds. / 保留此例：它是用一页篇幅向读者讲清该机制的
+最清楚方式，且可在数秒内重新生成。
+
+**Setup.** One state, 15 actions, `alpha = 0.01`, update-target noise
+`sigma = 10`. Action 6 has the highest true value. / 单一状态、15 个动作。
+
+**Phase 1 — exploration alive.** All 15 actions keep being updated. After
+200,000 periods the table reads: / 探索存活期，15 个动作都在更新：
+
+```
+action  6 : Q = 100.036   <- argmax (the greedy action)
+action  5 : Q =  97.916
+action  7 : Q =  96.683
+action  4 : Q =  95.475
+```
+
+**Phase 2 — exploration dead.** At `t = 10^9`, `eps = e^-50 ~ 2e-22`. The agent
+picks action 6 every period, so **only `Q[s,6]` is ever updated again**. Actions
+0–5 and 7–14 are frozen at the values above, permanently. / 探索死亡后只有
+`Q[s,6]` 继续更新，其余永久冻结在上表数值。
+
+`Q[s,6]` is an EWMA of a *noisy* target, so it does not settle — it jitters
+forever with stationary
+`sd = sigma * sqrt(alpha/(2-alpha)) = 10 * 0.0709 = 0.709`
+(simulation over 2M steps gives 0.707). / `Q[s,6]` 是带噪目标的指数移动平均，
+永不停息地抖动。
+
+**The punchline / 关键句**
+
+> The moment `Q[s,6]` jitters below the frozen `Q[s,5] = 97.916`, the maximum
+> switches from action 6 to action 5 → the policy mask changed → the
+> million-period streak resets to zero.
+> / `Q[s,6]` 一旦抖到冻结的 `97.916` 以下，最大值就从动作 6 换成动作 5 →
+> 策略掩码改变 → 百万期连续计数归零。
+
+**Sensitivity to where the runner-up happened to freeze / 对冻结位置的敏感性**
+
+| Frozen runner-up | Lead | Flip rate per visit | `P(10^6 clean)` | Outcome |
+|---|---|---|---|---|
+| 99.20 | 1.1 sd | 1.2e-2 | 0 | never converges |
+| 98.60 | 2.0 sd | 3.1e-3 | 0 | never converges |
+| 97.90 | 3.0 sd | 2.8e-4 | 1e-123 | never converges |
+| 97.00 | 4.2 sd | 2.3e-6 | 0.097 | converges |
+
+A 3.0 sd lead never converges; a 4.2 sd lead converges. The entire difference is
+where one frozen number happened to land at the instant exploration died — pure
+luck. This is why `T_c` spans 2e7 to 5e10 across sessions. / 3.0 与 4.2 个标准差
+之间就是「永不收敛」与「能收敛」的分界；全部差别只是探索死亡瞬间某个冻结数字落在
+哪里。这解释了 `T_c` 跨越 2e7 至 5e10 的巨大离散。
+
+Regenerate / 重新生成:
+
+```bash
+python3 -c "
+import numpy as np
+alpha, sigma, N = 0.01, 10.0, 3_000_000
+sd = sigma*(alpha/(2-alpha))**0.5
+print('jitter sd =', round(sd,4))
+for runner in [99.2, 98.6, 97.9, 97.0]:
+    rng = np.random.default_rng(1); q, below, cross = 100.0, False, 0
+    for t in range(N):
+        q = (1-alpha)*q + alpha*(100.0 + rng.normal(0, sigma))
+        b = q < runner
+        if b and not below: cross += 1
+        below = b
+    rate = cross/N
+    p = np.exp(-rate*1e6) if rate*1e6 < 700 else 0.0
+    print(f'runner={runner}  lead={(100.0-runner)/sd:.2f}sd  rate={rate:.2e}  P={p:.3e}')
+"
+```
+
+⚠️ Illustrative, not a quantitative model of the real `T_c`. `sigma = 10` is
+assumed, the real system has 6,200 masks with uneven visit frequencies, and the
+continuation term couples states. Present it as an intuition pump, never as an
+estimate. / 仅为示意，非真实 `T_c` 的定量模型：`sigma` 系假设值，真实系统有 6,200
+个掩码、访问频率不均，且 continuation 项耦合各状态。写作时只能作为直觉说明，
+绝不可当作估计。
+
+**Outstanding / 待办**
+
+Not yet tested on real data. Test: Q–Q plot of observed `converged_at` against an
+exponential distribution across the converged cohort. If it holds, censored runs
+can be handled by survival analysis instead of being rerun to completion. / 尚未
+在真实数据上检验。检验方法：对已收敛队列的 `converged_at` 作指数分布 Q–Q 图。
+若成立，删失样本可用生存分析处理，无需全部跑完。
+
+⚠️ The 20-million lower bound is *below* the `~3e8` point where `eps` becomes
+negligible, so the constant-hazard story cannot be the whole account across all
+parameterizations. It should be stated as applying to the baseline cells. /
+2000 万这个下界低于 `eps` 可忽略的 `~3e8`，因此恒定风险率不能解释全部参数配置；
+陈述时应限定在基准环境。
+
+---
+
+## I-07 — Censoring may be selection-biased toward low `Delta^C` / 删失可能系统性偏向低合谋样本
+
+- **Status / 状态**: `HYPOTHESIS`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Results / Limitations — potentially resolves I-02 / 结果与局限章，可能直接解决 I-02
+
+**Claim / 论点**
+
+If price-trigger equilibria take longer to form than the alternatives, then the
+5e9 operational cap removed disproportionately many **collusive** sessions. The
+low-noise mean would then be downward biased, and I-02 would be a sampling
+artefact rather than a replication failure. / 若价格触发式均衡形成更慢，则 5e9 的
+运行上限会不成比例地砍掉**更合谋**的 session。低噪声均值因此向下偏，I-02 就是抽样
+假象而非复现失败。
+
+**Supporting pattern / 支持性迹象**
+
+- Low-noise pilot converged at `3.09e9` (under the cap) with `Delta^C = 0.319`.
+- High-noise pilot converged at `1.54e9` with `Delta^C = 0.748`.
+- The mixed 1,000-session mean (0.4156) is *above* the uncensored pilot value —
+  direction consistent with a positive `T_c`–`Delta^C` relationship.
+- The campaign log already anticipated this: "convergence speed may be
+  correlated with the learned strategy" (`experiments/2026-08-30_low_noise_campaign_log.md:88`).
+
+**Test / 检验**
+
+`corr(converged_at, delta_c)` over the converged cohort, plus a scatter plot. If
+significantly positive, report the low-noise estimate with a survival-corrected
+mean and state the bias direction explicitly. / 对已收敛队列计算
+`corr(converged_at, delta_c)` 并作散点图；若显著为正，则以生存校正后的均值报告
+低噪声结果，并明确说明偏差方向。
+
+**Outstanding / 待办**
+
+Requires the per-session table (`summary.json` or Step 37A `session_metrics.csv`)
+to be brought into the repo from Narval. Not currently present. / 需要把 Narval
+上的逐 session 表带回仓库；目前不在仓库内。
+
+---
+
+## I-08 — `beta` is an economic parameter, not a technical one / 探索衰减参数是经济参数而非技术参数
+
+- **Status / 状态**: `VERIFIED` (mechanism); proposed robustness check is `OPEN`
+- **Date / 日期**: 2026-09-01
+- **Destination / 论文去处**: Methodology + Discussion / 方法章与讨论章
+
+**Claim / 论点**
+
+Exploration stops on a fixed clock, not on any measure of learning progress.
+`beta` therefore determines how much of the action space remains permanently
+mis-evaluated — i.e. how biased, and hence how collusive, the agents end up.
+It is load-bearing for the economics, not a convergence-speed knob. / 探索按固定
+时钟停止，与学习进展无关。因此 `beta` 决定了动作空间中有多少部分被永久错误评估，
+也就决定了 agent 最终有多偏、有多合谋。它承载经济含义，不是收敛加速旋钮。
+
+**Evidence / 证据**
+
+```python
+# dgj/players/speculator/q_learning.py
+@njit
+def exploration_rate(visits_of_current_value: int, exploration_decay: float) -> float:
+    return math.exp(-exploration_decay * visits_of_current_value)
+```
+
+The only argument is a visit count. No `Q`, no convergence state. An agent that
+has found the optimum and an agent that has merely run out of clock behave
+identically thereafter. / 唯一的输入是访问次数，没有 `Q`，没有收敛状态。真正找到
+最优的 agent 与只是时钟走完的 agent，此后行为完全相同。
+
+This is precisely the paper's own theoretical construct — Definition 3.3
+(`docs/paper_full_text.txt`, p.19): a collusive equilibrium in which speculators
+"systematically undervalue aggressive trading strategies due to an incorrect
+outcome evaluation system. This system remains uncorrected as learning is
+confined to outcomes observed along the equilibrium path." And p.19 on
+experience-based equilibrium: beliefs "about off-path outcomes need not align
+with expected discounted cash flows under the true distribution, allowing for
+significant biases." / 这正是论文自己的理论构造。
+
+**Why this explains the rising branch of the U / 为何解释 U 型的上升支**
+
+Under high noise the profit signal is buried in `u_t`, so distinguishing two
+actions requires *more* exploratory draws — but `beta` is fixed, so the budget is
+the same. More noise therefore means less identification per unit of exploration,
+more permanently frozen errors, more collusion. The paper states the same
+(`:1535–1541`): the asymmetry becomes "increasingly difficult to correct through
+exploration updates." / 高噪声下利润信号被淹没，区分两个动作需要更多次探索，但
+`beta` 固定、预算不变。噪声越大，单位探索识别出的信息越少，永久冻结的错误越多，
+合谋越强。论文原文表述一致。
+
+**Outstanding / 待办**
+
+Proposed robustness check: vary `beta` and observe `Delta^C`. If `Delta^C` moves
+with `beta`, that **empirically demonstrates** collusion arises from insufficient
+exploration rather than merely citing the theory. A few dozen sessions per point
+should reveal the trend — far cheaper than a 1,000-session cell.
+First verify whether the paper already reports a `beta` sensitivity; if not, this
+is an incremental contribution. / 建议的稳健性检验：改变 `beta` 观察 `Delta^C`。
+若二者联动，即**实证**了合谋源于探索不足，而非仅引用理论。每个点几十个 session
+即可看出趋势，远比 1,000 session 便宜。先核查论文是否已做 `beta` 敏感性；若无，
+这是增量贡献。
+
+---
+
+## I-09 — `L^C` is near-deterministic under the baseline calibration / 流动性指标在基准校准下近乎确定
+
+- **Status / 状态**: `VERIFIED`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Results — market quality, with an interpretive caution / 结果章，市场质量，附解释警告
+
+**Claim / 论点**
+
+Because `1 - xi*lambda_hat = theta(1 - xi*gamma_hat_1) / (theta + xi^2)`, the
+liquidity metric reduces to `L^C ~ 2.5e6 / |1 - xi*gamma_hat_1|`. Its level is
+dominated by the constant `(theta + xi^2)/theta = 2.5e6`, and it carries almost
+no independent information beyond `chi_hat` and `sigma_u`. / 由于该恒等式，流动性
+指标化简为 `L^C ~ 2.5e6 / |1 - xi*gamma_hat_1|`；其量级由常数 2.5e6 主导，除
+`chi_hat` 与 `sigma_u` 外几乎不携带独立信息。
+
+**Evidence / 证据**
+
+Over 100,000 measurement periods in both pilot cells, `lambda_hat` varies only in
+the 12th decimal, and `1 - xi*lambda_hat` is **negative in 100% of periods**
+(`xi*gamma_hat_1 ~ 1.54–1.58 > 1`). No period crosses the pole. / 在两个 pilot 的
+十万个测量期中，`lambda_hat` 仅在第 12 位小数变动，`1 - xi*lambda_hat` 在 100% 的
+期数中为负，无一期穿过奇点。
+
+| Cell | `lambda_hat` mean | `1 - xi*lambda_hat` | `L^C` mean | `L^C` median |
+|---|---|---|---|---|
+| `sigma_u=0.1` | 0.002000000460 | -2.301e-7 | 4.345e6 | 4.341e6 |
+| `sigma_u=100` | 0.002000000429 | -2.145e-7 | 4.663e6 | 4.661e6 |
+
+**Independent validation of the market maker / 做市商的独立验证**
+
+Recovering `gamma_1` from theory,
+`gamma = I*chi / ((I*chi)^2 + (sigma_u/sigma_v_hat)^2)`, gives 0.003165 (low) and
+0.003089 (high); the values implied by the measured `lambda_hat` are 0.00315 and
+0.00307. Agreement to three significant figures means the rolling OLS converges
+to exactly where theory says it should. This is strong evidence the market-maker
+kernel is correct. / 由理论式反推 `gamma_1` 与实测值三位有效数字吻合，说明滚动 OLS
+收敛到理论预测处，是做市商内核正确的有力证据。
+
+**Outstanding / 待办**
+
+Check whether the paper reports `L^C` in the same order of magnitude. If it does
+not, there is an interpretation gap to locate. Consider reporting
+`|1 - xi*gamma_hat_1|` alongside `L^C`, since that is where the economics lives.
+/ 核对论文报告的 `L^C` 量级是否相同；若不同则存在解释差异需定位。建议在报告
+`L^C` 的同时报告 `|1 - xi*gamma_hat_1|`，经济含义在后者。
+
+---
+
+## I-10 — The Grossman–Stiglitz inversion / 对 Grossman-Stiglitz 权衡的反转
+
+- **Status / 状态**: `OPEN`
+- **Date / 日期**: 2026-08-31
+- **Destination / 论文去处**: Discussion / 讨论章
+
+**Claim / 论点**
+
+In the classical Grossman–Stiglitz trade-off, informativeness and arbitrageur
+rents are *complements*: rents are the payment for producing information. Here
+they are *substitutes* — the rents come from **not** producing information
+(over-pruning) or from mutual deterrence (price triggers), and both destroy
+informativeness. / 在经典的 Grossman-Stiglitz 权衡中，信息效率与套利者租金是
+互补的：租金是生产信息的报酬。而在这里两者是替代的——租金来自**不**生产信息
+（过度剪枝）或相互威慑（价格触发），两者都在摧毁信息效率。
+
+**Supporting observation / 支持性观察**
+
+`I^C` is 8.8e6 (low noise) versus 7.08 (high noise) — six orders of magnitude —
+yet `Delta^C` is *higher* in the high-noise cell. The environment with the most
+"efficient" prices has the least collusion. / 价格信息效率相差六个数量级，但合谋
+程度在高噪声环境**更高**。价格最「有效」的环境恰恰合谋最少。
+
+**Argument to develop / 待展开的论点**
+
+The efficient-market hypothesis quietly assumes arbitrageurs are *competitive*
+and treats informativeness as a by-product of that competition. Once arbitrageurs
+are learning algorithms, competition is no longer primitive — it is an
+equilibrium selection. "Market efficiency" is then not a testable state of the
+world but a contingency depending on arbitrageurs *failing* to coordinate. /
+有效市场假说默认套利者是**竞争性**的，并把信息效率视为竞争的副产品。一旦套利者是
+学习型算法，竞争就不再是原始设定，而是均衡选择的结果。「市场有效」于是不是一个可
+检验的世界状态，而是一个依赖于套利者**协调失败**的偶然性。
+
+**Outstanding / 待办**
+
+Draft 2–3 pages connecting to Grossman & Stiglitz (1980), Kyle (1985), and the
+algorithmic-collusion literature (Calvano et al., 2020). Check that this framing
+does not merely restate the source paper's own discussion. / 起草 2–3 页，接上
+Grossman-Stiglitz (1980)、Kyle (1985) 与算法合谋文献 (Calvano et al., 2020)；
+须确认此框架并非只是复述原文自身的讨论。
+
+---
+
+## I-11 — Documentation lags the codebase / 文档落后于代码
+
+- **Status / 状态**: `HOUSEKEEPING`
+- **Date / 日期**: 2026-08-31
+
+Three concrete defects observed / 三处具体缺陷:
+
+1. `docs/development_journal.md` states "the verified market kernel is still pure
+   Python and has no Numba backend" and lists the accelerated backend as
+   `[PLANNED]`. `03_Code/dgj_sim` exists, is tested, and has run a full campaign.
+   `vibe_replication/README.md` carries the same stale claim. / 开发日记与 README
+   仍称没有 Numba 后端，但 `dgj_sim` 已存在、已测试并已跑完一轮实验。
+2. `dgj/config.py` annotates `price_grid` with `# A5`; the per-value price-grid
+   decision is **A22** (A5 is the fixed-point root selection). / `config.py` 把
+   `price_grid` 标注为 A5，实际应为 A22。
+3. The "822 converged / 178 censored" figures quoted throughout the docs describe
+   the **first capped campaign** (Slurm job `2099411`, committed 2026-08-30). If
+   the recovery has since completed, no record of it exists in the repository. /
+   文档中反复引用的 822/178 描述的是**首轮带上限的实验**；若恢复运行已完成，仓库
+   内没有任何记录。
+
+
+---
+
+## I-12 — No test that the converged outcome is an equilibrium / 尚未检验收敛结果是否构成均衡
+
+- **Status / 状态**: `OPEN`
+- **Date / 日期**: 2026-09-01
+- **Destination / 论文去处**: Results / Appendix — referee-anticipation / 结果或附录章，预备审稿人质询
+
+**Claim / 论点**
+
+The replication measures how profitable the converged strategies are
+(`Delta^C`), what they do (`chi_hat`, IRF), and what they imply for market
+quality — but never tests whether the converged outcome **is an equilibrium**.
+Without that test, "the AI learned a collusive *equilibrium*" is strictly only
+"the AI learned a high-profit *strategy*." / 本复现测量了收敛策略的盈利性、行为与
+市场质量含义，但从未检验收敛结果**是否构成均衡**。缺少该检验时，「AI 学到了合谋
+**均衡**」严格来说只能说成「AI 学到了高利润**策略**」。
+
+**What the paper does / 论文做了什么**
+
+- Footnote 29: "numerical tests suggest that this AI collusive equilibrium is
+  **approximately Nash**, meaning **no local deviation** is preferred."
+  Details in Online Appendix 4.10.
+- Footnote 30: outcomes are classified as an **experience-based equilibrium**
+  using the formal tests of Fershtman and Pakes (2012). Details in Online
+  Appendix 4.2, headed "Testing If Outcomes Form An Experience-Based
+  Equilibrium."
+
+**What we have / 我们有什么**
+
+Neither test exists. `dgj_sim` implements `metrics/collusion.py`,
+`metrics/market_quality.py`, `metrics/trading_policy.py`, and `game/irf.py`;
+`vibe_replication` covers Steps 01–36G and 35A–35F. No equilibrium test in
+either. / 两个检验都不存在。
+
+**Why this is tractable / 为何可行**
+
+The local-deviation test is cheap: Q tables, policy masks, market state, and RNG
+states are all preserved in the Step-35A checkpoint. For each agent at the
+convergence point, probe neighbouring actions and check whether realized profit
+rises. No retraining is required. The Fershtman–Pakes consistency test is more
+involved — it compares on-path evaluations against expected discounted cash
+flows under the true distribution — but also runs off saved checkpoints. /
+局部偏离检验很便宜：Q 表、策略掩码、市场状态与随机流都保存在 Step-35A checkpoint
+中；只需在收敛点上逐一试探相邻动作，无需重跑训练。
+
+**Outstanding / 待办**
+
+Read Online Appendix 4.2 and 4.10 for the exact test definitions before
+implementing — do not invent a test and claim correspondence with the paper's.
+Decide whether this is in scope; if it is cut for time, say so explicitly in the
+limitations rather than leaving the equilibrium claim unsupported. / 实现前先读
+附录 4.2 与 4.10 的确切定义，不要自创检验再宣称与论文对应。若因时间放弃，应在局限
+章明确说明，而不是让均衡主张悬空。
+
+
+---
+
+## I-13 — Q-loss: the paper's global best-response test, and the high-noise gap / Q-loss：论文的全局最优反应检验，及高噪声空档
+
+- **Status / 状态**: `OPEN` — **corrected 2026-09-01**; this is a replication gap, not an invention / **已于 2026-09-01 更正**：这是复现缺口，不是自创
+- **Date / 日期**: 2026-09-01
+- **Destination / 论文去处**: Results — replication gap plus a genuine incremental contribution / 结果章：复现缺口，同时是真正的增量贡献
+
+> **CORRECTION / 更正.** An earlier version of this entry claimed the paper does
+> not run a global deviation test and proposed a Monte-Carlo rollout as our own
+> contribution. **That was wrong.** Online Appendix 4.10 ("Computing Q-loss")
+> runs exactly this test, by **value function iteration** rather than Monte
+> Carlo — an exact and far cheaper method. Footnote 29's "no **local** deviation
+> is preferred" understates what OA 4.10 actually does: `x*_i(s)` is the argmax
+> of the theoretical `Q*` over the **whole** action set. / 本条早先版本称论文未做
+> 全局偏离检验并提议蒙特卡洛，**该说法错误**。附录 4.10 已用**值函数迭代**做了
+> 此检验；脚注 29 的「局部」措辞低估了它，`x*_i(s)` 是在**整个**动作集上取的
+> argmax。
+
+**The paper runs two DIFFERENT tests — do not conflate them / 论文做了两个不同的检验，不可混同**
+
+| | **OA 4.2** — Fershtman–Pakes three conditions | **OA 4.10** — Q-loss |
+|---|---|---|
+| Question | Is `Q` consistent with the agent's **own** experience? | Is the strategy the **true best response** to the rival? |
+| Method | Simulate along the equilibrium path; compare `mu_i(s)` against `Q_i(s, x_i(s))` | **Value function iteration** for the theoretical `Q*_i`, then compare |
+| Key detail | **Condition 2 is "satisfied by construction"** — argmax is over the agent's *own* `Q`, so it does **not** test optimality | Global: `x*_i(s)` is the argmax of `Q*` over all of `X` |
+| Detects over-pruning? | **No** | **Yes** |
+
+**How Q-loss works / Q-loss 的做法**
+
+```
+Q*_i(s_t, x_i) = E[pi_i,t | s_t, x_i] + rho * E[ max_{x'} Q*_i(s_{t+1}, x') | s_t, x_i ]   (IA.4.16)
+Q_loss(s)      = [ Q*_i(s, x*_i(s)) - Q*_i(s, x_i(s)) ] / Q*_i(s, x*_i(s))                (IA.4.17)
+```
+
+Design choices to reproduce exactly / 必须照搬的设计选择:
+
+- The rival is **held at its limit strategy** `x_j(s)` — the question is "given the
+  rival, what should I do." / 对手固定使用其极限策略。
+- The market maker uses the **measured** `gamma_0` and `lambda`, simple averages
+  of `gamma_0,t` and `lambda_t` over the `T = 100,000` measurement periods — not
+  theoretical values. / 做市商使用实测均值，非理论值。
+- Value function iteration on the **same grids** `P x V x V x X`; `rho < 1`
+  guarantees convergence by the contraction mapping theorem. / 在同一套网格上做
+  值函数迭代。
+- Q-loss is then averaged along a simulated equilibrium path with
+  `T_0 = 100,000` burn-in and `T = 1,000,000`. / 沿模拟均衡路径平均。
+
+**The paper's target numbers / 论文的目标数字**
+
+Low noise (`sigma_u = 10^-1`, `xi = 500`): **largest Q-loss 0.38%, average 0.27%**
+across `N_sim = 1,000` sessions — "indicating that the AI speculators' limit
+strategies are close to optimal strategies."
+
+The decomposition (IA.4.18) splits this into contemporaneous profit loss and
+continuation value loss. Reading the axes of Figure IA.8, the contemporaneous
+term is roughly +2% and the continuation term roughly -2%, netting to 0.27% —
+the numerical fingerprint of the price-trigger mechanism: deviating pays today
+and costs more tomorrow. ⚠️ Axis values are OCR-derived; read Figure IA.8 for
+exact numbers before quoting. / 分解约为当期 +2%、延续 -2%，净得 0.27%，即价格
+触发机制的数值指纹。⚠️ 轴数值来自 OCR，引用前须核对原图。
+
+**The genuine gap: high noise / 真正的空档：高噪声**
+
+Searching the full appendix, "Q-loss" appears **only** in §4.10 and **only** at
+`sigma_u = 10^-1`. The paper never reports Q-loss for the high-noise cell. /
+全文搜索 "Q-loss" 仅出现在 4.10 节且仅限低噪声；论文从未报告高噪声的 Q-loss。
+
+**Prediction / 预期**: over-pruning means the agents genuinely leave money on the
+table — given that the rival also under-trades, trading more should pay. So
+`Q_loss(high noise) >> 0.27%`. If confirmed, this separates the two mechanisms
+quantitatively **using the paper's own metric**. If instead it is also small,
+that is *more* interesting: over-pruning would be self-sustaining as a mutual
+best response, a subtler and stronger claim. **Both outcomes are publishable.** /
+两种结果都值得写。
+
+**Cost / 成本**
+
+Value function iteration over `31 * 10 * 10 * 15 = 46,500` entries with
+guaranteed contraction — seconds to minutes, not hours. Every input already
+exists: limit strategies in the checkpoint policy masks, `lambda` in
+`rows[:, COL_LAM]`, `gamma_0` recoverable from the measurement rows. / 所有输入
+均已具备，运行时间以秒计。
+
+**Why this now outranks the earlier framing / 为何优先级上升**
+
+This is no longer "a stronger test of our own design" but "something the paper
+did that we have not." A replication gap outranks a nice-to-have. Priority is now
+`I-14 > I-13 > I-12`, with I-13 carrying a built-in contribution (the high-noise
+cell) once the low-noise replication matches 0.27%. / 这已从「自创的更强检验」
+变为「论文做了而我们没做」。复现缺口优先于锦上添花。
+
+**Superseded content / 已作废的内容**
+
+The Monte-Carlo rollout design, its ~1.5e8-period cost estimate, and the claim
+of independence from the paper are withdrawn. The falsifiable chain onto I-05's
+`detectability()` survives and is strengthened: low-noise detectability ~0.95
+should coincide with low Q-loss (price-trigger is a genuine best response),
+high-noise detectability ~0.03 with high Q-loss (deviation is unpunished and
+profitable). / 蒙特卡洛设计与成本估计作废；与 I-05 的可证伪链条保留并加强。
+
+**Framing: off-path belief error is not a defect to repair / 立场：off-path 信念误差不是待修复的缺陷**
+
+Footnote 29's "approximately Nash, meaning **no local deviation** is preferred"
+invites the objection that off-path beliefs may be arbitrarily wrong. That
+objection misreads the concept. Fershtman–Pakes experience-based equilibrium
+**explicitly permits** it (`paper_full_text.txt`, p.19): beliefs about off-path
+outcomes "need not align with expected discounted cash flows under the true
+distribution, allowing for significant biases." Requiring correct off-path
+beliefs would upgrade the concept to subgame-perfect Nash — under which the
+over-pruning mechanism cannot exist at all. Do not "fix" the locality; measure
+it. / 不要「修复」局部性，而要度量它。要求 off-path 信念正确等于换用子博弈完美
+Nash 均衡，而在该概念下过度剪枝机制根本不存在。
+
+**Proposed test / 提议的检验**
+
+At the convergence point, for each agent and **all** `n_x = 15` actions (not only
+neighbours), Monte-Carlo the *true* discounted value under both agents' actual
+policies, then report three things: / 在收敛点上对**全部** 15 个动作做蒙特卡洛
+rollout，报告三项：
+
+| Test | Question | Interpretation |
+|---|---|---|
+| On-path consistency | Does `Q[s,a*]` equal the true discounted value? | Yes → valid experience-based equilibrium |
+| Off-path gap | How far is `Q[s,a]` from the true value? | **This gap is the size of the "artificial stupidity" — report it directly** |
+| Global optimality | Is `a*` the action with the highest *true* value? | No → the agents are leaving money on the table |
+
+**Why it classifies mechanisms / 为何它能分类机制**
+
+The two mechanisms behave **oppositely** under this test: / 两个机制表现相反：
+
+- **Price-trigger**: the deviation is detected and punished, so its true
+  discounted value is *lower*; `a*` genuinely is a best response. **The global
+  test passes — it really is a Nash equilibrium.** / 偏离被侦测并惩罚，真实折现
+  价值更低，全局检验**通过**，确为 Nash 均衡。
+- **Over-pruning**: the opponent cannot detect the deviation and does not punish,
+  so its true value is *higher* — but the frozen `Q` hides this. **The global
+  test fails — this is not a Nash equilibrium; the agents are simply wrong.** /
+  对手无法侦测、不会惩罚，真实价值更高但被冻结的 `Q` 掩盖，全局检验**失败**，
+  这根本不是 Nash 均衡。
+
+**Falsifiable prediction chaining onto I-05 / 与 I-05 串联的可证伪预测**
+
+```
+low noise : detectability ~ 0.95+  ->  punishment feasible    ->  price-trigger  ->  global test should PASS
+high noise: detectability ~ 0.03   ->  punishment infeasible  ->  over-pruning   ->  global test should FAIL
+```
+
+If this holds, three **independent** lines of evidence converge on the same
+mechanism assignment: the grid detectability measurement (I-05,
+`dgj/diagnostics.py`), the IRF classification (Steps 35D–35F), and this test.
+That is far stronger before a referee than any single metric. / 若成立，则三条
+独立证据线指向同一机制归属，在审稿人面前远强于任何单一指标。
+
+**Cost / 成本**
+
+No retraining. Q tables, policy masks, market state and all seven RNG streams
+are preserved in the Step-35A checkpoint. Order of magnitude: 1,000 rollouts x
+~100-period effective horizon (`rho = 0.95`) x 15 actions x ~50 sampled on-path
+states x 2 agents ~ 1.5e8 periods, roughly 5% of one training session. / 无需
+重训；约为一个训练 session 的 5%。
+
+**Near-free preliminary diagnostic / 几乎免费的先导诊断**
+
+Before any rollout: compare the converged frozen `Q[s,a]` against the initial
+`Q_0(s,a)` from `initial_q_block()`, which is the analytic benchmark value under
+Nash pricing. Actions whose frozen value sits far below `Q_0` are the pruned
+ones. Counting how many and by how much yields an over-pruning intensity measure
+from a single NumPy operation, with no simulation. / 先把收敛后的冻结 `Q[s,a]`
+与解析的初始 `Q_0(s,a)` 相比；远低于 `Q_0` 的动作即被剪枝的动作。一次 NumPy 运算
+即得剪枝强度指标，无需任何模拟。
+
+**Outstanding / 待办**
+
+⚠️ Read Online Appendix 4.2 and 4.10 for the exact test definitions **before**
+implementing. Designing an independent test and then claiming correspondence
+with the paper's is the kind of thing a referee catches immediately. Either
+reproduce the paper's tests, or state plainly that this is a **stronger test of
+our own design** and say why. / 实现**之前**先读附录 4.2 与 4.10 的确切定义。
+自创检验再宣称与论文一致，是审稿人一眼看穿的问题：要么复现论文的检验，要么明确
+声明这是**我们自己设计的更强检验**并说明理由。
+
+
+---
+
+## I-14 — No negative control: the engine has never been shown to produce zero collusion / 缺少阴性对照：从未证明引擎能产出零合谋
+
+- **Status / 状态**: `OPEN` — **highest priority of I-12/I-13/I-14** / 三项中优先级最高
+- **Date / 日期**: 2026-09-01
+- **Destination / 论文去处**: Results — validation, and a likely referee's first question / 结果章验证，且很可能是审稿人的第一个问题
+
+**The exposure / 暴露点**
+
+The first thing a referee asks is not "did you test for equilibrium" but: *how do
+we know your Q-learning implementation does not simply always produce
+`Delta^C > 0`?* No current test answers this. `test_parity_vs_steps`,
+`test_benchmarks`, `test_market_maker`, `test_detectability`,
+`test_metrics_and_irf`, `test_protocol_order` all verify that a **component** is
+correct. None demonstrates that the **whole engine** returns zero collusion in a
+setting where zero collusion is the right answer. Strictly, no `Delta^C > 0`
+result has yet ruled out an engine-level tendency to manufacture collusion. /
+目前没有任何测试能回答「你的实现是否总是产出合谋」。所有测试都在验证**组件**正确
+，没有一个证明**整个引擎**在应当无合谋的环境中确实给出零合谋。
+
+**The paper hands us the control / 论文已给出对照设定**
+
+`docs/paper_full_text.txt:1744–1785`:
+
+> "we **disable the AI speculators' ability to use lagged market prices as a
+> monitoring tool**. This is accomplished by **removing the lagged market price
+> `p_{t-1}` from the state variable `s_t`** used for decision-making at period
+> `t` ... even in environments with both a significant presence of
+> information-insensitive investors (i.e., a high `xi`) and low noise trading
+> risk (i.e., a low `sigma_u`), the price-trigger punishment scheme cannot be
+> learned, and **the collusion capacity, measured by `Delta^C`, drops to zero.**"
+
+This is a placebo/ablation with a predicted effect of **0.75 -> 0** in the
+low-noise, high-`xi` cell — the same cell as I-02. / 这是一个预测效应为
+**0.75 -> 0** 的消融实验，且用的正是 I-02 那个环境。
+
+**Implementation cost: a few lines / 实现成本：几行**
+
+State encoding is `encode(p_idx, v_lag, v_cur, n_v) = (p_idx*n_v + v_lag)*n_v + v_cur`.
+Removing `p_{t-1}` means forcing `p_next = 0` in `protocol.run_periods`, ideally
+behind a new `ExperimentCell` flag (e.g. `state_includes_lagged_price: bool = True`)
+so the cell key and provenance record the ablation. No new algorithm; no economic
+parameter changes. / 只需在 kernel 中把 `p_next` 固定为 0，最好加一个
+`ExperimentCell` 开关，使 cell key 与 provenance 记录该消融。不改任何经济参数。
+
+**Runtime cost: lower than the main experiment / 运行成本：低于主实验**
+
+Reachable states collapse from `31 * 10 * 10 = 3,100` to `100`, so there are 31x
+fewer policy masks that can flip and `T_c` should fall well below the 3e9
+observed in the low-noise pilot (see I-06: the streak resets whenever *any* mask
+changes). The predicted effect size is enormous, so a few dozen sessions suffice
+— 1,000 is not needed to distinguish 0.75 from 0. / 可达状态从 3,100 塌缩到 100，
+可翻转掩码少 31 倍，`T_c` 应显著低于 3e9；效应量极大，几十个 session 即可。
+
+**Three jobs at once / 一举三得**
+
+1. **Negative control** — demonstrates the engine can produce zero collusion. /
+   阴性对照：证明引擎能产出零合谋。
+2. **Mechanism confirmation** — shows directly that low-noise collusion is driven
+   by price monitoring, which is the entire logic chain of I-05 and I-13. /
+   机制确证：直接证明低噪声合谋由价格监测驱动。
+3. **Diagnostic for I-02** — if our low-noise `Delta^C = 0.32` is already partly
+   "monitoring not working," the ablation's *drop* will be visibly smaller than
+   the paper's 0.75 -> 0. That could localize the low-noise shortfall. /
+   诊断 I-02：若我们的低噪声结果本就部分源于监测失效，消融后的**跌幅**会明显小于
+   论文的 0.75 -> 0，从而定位差距来源。
+
+**Priority relative to I-12 and I-13 / 与 I-12、I-13 的优先级**
+
+`I-14 > I-13 > I-12`. I-14 is the cheapest, has the largest predicted effect,
+answers the most likely referee question, and doubles as a diagnostic for the
+open replication gap. / I-14 最便宜、预测效应最大、回答最可能的审稿人质询，并且
+兼作未决复现差距的诊断。
+
+**Note on I-12's severity / 关于 I-12 的严重性**
+
+I-12 (no experience-based equilibrium test) is a gap, not a wound. The paper
+concedes its own test is only local (footnote 29). Our primary claims —
+`Delta^C` magnitudes, IRF-based mechanism shares, market-quality metrics — do not
+depend on it. The only genuine exposure is wording: without the test, "the AI
+learned a collusive **equilibrium**" should be written "the AI learned a
+high-profit **strategy**." That is fixable with a sentence rather than with
+compute. / I-12 是缺口而非硬伤：论文自承其检验仅为局部，我们的主要结论不依赖它。
+真正的风险只在措辞——缺少该检验时，「学到了合谋**均衡**」应写成「学到了高利润
+**策略**」，这可用一句话解决，不必用算力解决。
+
+**Outstanding / 待办**
+
+Implement the flag, run a few dozen low-noise ablated sessions, and report
+`Delta^C` against the un-ablated cell. Record the ablation in the cell key so the
+two cohorts can never be pooled by accident. / 实现开关，运行数十个低噪声消融
+session，与未消融环境对比报告 `Delta^C`；消融须进入 cell key，避免两组数据被误合并。
