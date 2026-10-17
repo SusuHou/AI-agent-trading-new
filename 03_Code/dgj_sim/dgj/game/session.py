@@ -189,6 +189,8 @@ class Session:
         # --- randomness and initial state
         self.streams = ShockStreams(experiment_seed, cell, session_index)
         p_idx, v_lag, v_cur = self.streams.initial_state(self.p.num_price_points, self.p.num_value_points)
+        if not cell.state_includes_lagged_price:
+            p_idx = 0                         # drawn anyway, so the streams stay common across cells
         cursor[C_P_IDX], cursor[C_V_LAG], cursor[C_V_CUR] = p_idx, v_lag, v_cur
 
         self.state = SessionState(Q=Q, visits=visits, policy=policy, cursor=cursor, hist=hist, stats=stats)
@@ -212,7 +214,7 @@ class Session:
             shocks.value_index, shocks.noise, shocks.mode, shocks.action,
             p.learning_rate, p.discount_factor, p.exploration_decay, p.pricing_error_weight,
             p.investor_slope, p.value_mean, p.market_maker_window,
-            n, learning, p.convergence_periods, out_rows,
+            n, learning, p.convergence_periods, out_rows, self.cell.state_includes_lagged_price,
         )
 
     _EMPTY_ROWS = np.zeros((0, 1))

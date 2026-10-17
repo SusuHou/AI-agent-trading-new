@@ -66,12 +66,15 @@ class ExperimentCell:
     price_grid: str = "per_value"      # A5: P(v_{t-1}) per value (footnote 25) | "global" (steps/ reading)
     training_tie_rule: str = "uniform"  # exact Q ties during exploitation in training
     measurement_tie_rule: str = "lowest_index"  # frozen greedy policy after convergence
+    # Negative control (Dou et al., Section 5, printed p. 32): False removes p_{t-1} from the
+    # speculators' state, so price-trigger monitoring is impossible. / 去掉状态中的滞后价格（阴性对照）。
+    state_includes_lagged_price: bool = True
 
     def with_parameters(self, **changes) -> "ExperimentCell":
         return replace(self, parameters=replace(self.parameters, **changes))
 
     def to_dict(self) -> dict:
-        return {
+        payload = {
             "parameters": asdict(self.parameters),
             "label": self.label,
             "prehistory": self.prehistory,
@@ -80,6 +83,10 @@ class ExperimentCell:
             "training_tie_rule": self.training_tie_rule,
             "measurement_tie_rule": self.measurement_tie_rule,
         }
+        # Recorded only when switched off, so every existing cell keeps its key.
+        if not self.state_includes_lagged_price:
+            payload["state_includes_lagged_price"] = False
+        return payload
 
     def key(self) -> str:
         """Stable 16-hex identity of the cell (label excluded on purpose)."""

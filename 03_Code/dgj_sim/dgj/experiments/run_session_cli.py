@@ -70,6 +70,7 @@ def build_cell(arguments: argparse.Namespace) -> ExperimentCell:
         label=arguments.label,
         prehistory=arguments.prehistory,
         price_grid=arguments.price_grid,
+        state_includes_lagged_price=not arguments.no_lagged_price,
     )
 
 
@@ -428,6 +429,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--xi", type=float, default=500.0)
     parser.add_argument("--prehistory", default="nash", choices=["nash", "cartel"])
     parser.add_argument("--price-grid", default="per_value", choices=["per_value", "global"])
+    parser.add_argument(
+        "--no-lagged-price",
+        action="store_true",
+        help="negative control: remove p_{t-1} from the state (Dou et al., p. 32)",
+    )
     parser.add_argument("--convergence-periods", type=int, default=None)
     parser.add_argument("--measurement-periods", type=int, default=None)
     parser.add_argument(
