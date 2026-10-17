@@ -48,7 +48,7 @@ def run_periods(
     value_draws, noise_draws, mode_draws, action_draws,
     learning_rate, discount_factor, exploration_decay, pricing_error_weight,
     investor_slope, value_mean, window,
-    n_periods, learning, streak_target, out_rows,
+    n_periods, learning, streak_target, out_rows, use_lagged_price,
 ):
     """Run up to n_periods; returns (periods_run, converged). / 运行若干期。
 
@@ -56,6 +56,8 @@ def run_periods(
                     greedy policy has been unchanged for streak_target periods.
     learning=False: frozen-policy measurement; writes one row per period into
                     out_rows if it has room.
+    use_lagged_price=False: negative control; the price index in the state is
+                    always 0, so p_{t-1} carries no information. / 阴性对照。
     """
     I = Q.shape[0]
     n_v = value_grid.shape[0]
@@ -104,7 +106,7 @@ def run_periods(
 
         # 6. next state and Q update / 下一状态与 Q 更新 ------------------
         v_next = value_draws[k]
-        p_next = price_to_index(p, price_grid[v_cur])     # P(v_t): grid of the value p_t formed under
+        p_next = price_to_index(p, price_grid[v_cur]) if use_lagged_price else 0  # P(v_t): grid of the value p_t formed under
         if learning:
             base = next_block(p_next, v_cur, n_v)
             changed = False
