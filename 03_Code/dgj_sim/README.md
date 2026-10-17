@@ -84,7 +84,7 @@ false zero-percent results. / 本步骤只是高噪声描述证据，不是完�
 | 1. Period order: choose → noise → price from old data → profits → append → Q update | `game/protocol.py::run_periods` (steps 1–6, in that order, nothing else) |
 | 2. Market maker never prices period t with period-t data | `adaptive.quote` is called before `adaptive.observe`; `tests/test_protocol_order.py` proves the price equals the old-coefficient price and differs from the "cheating" price |
 | 3. After convergence freeze Q / exploration / visit counts, maker keeps rolling | `run_periods(learning=False)` skips steps 1a and 6; `Session.measure` asserts Q/visits/policy unchanged and append count grew |
-| 4. Independent, reproducible randomness per session | `game/shocks.py`: `SeedSequence(seed, spawn_key=(cell, session, stream))`, drawn in chunks outside the kernel |
+| 4. Independent, reproducible randomness per session | `game/shocks.py`: `SeedSequence(seed, spawn_key=(session, stream))`, common across cells (paired comparisons), drawn in chunks outside the kernel |
 
 ## Layout = the paper's actors / 结构 = 论文的参与者
 

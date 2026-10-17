@@ -9,6 +9,7 @@
 import os
 import tempfile
 import unittest
+from dataclasses import replace
 
 import numpy as np
 
@@ -161,12 +162,25 @@ class TestRule4_Reproducibility(unittest.TestCase):
         s = ShockStreams(7, CELL, 0)
         first, second = s.draw(5, 10), s.draw(5, 10)
         direct = np.random.Generator(np.random.PCG64(np.random.SeedSequence(
-            entropy=7, spawn_key=(CELL.key_uint32(), 0, 1)))).integers(10, size=10, dtype=np.int64)
+            entropy=7, spawn_key=(0, 1)))).integers(10, size=10, dtype=np.int64)
         np.testing.assert_array_equal(np.concatenate([first.value_index, second.value_index]), direct)
         # chunk size does not change the sequence
         t = ShockStreams(7, CELL, 0).draw(10, 10)
         np.testing.assert_array_equal(t.noise, np.concatenate([first.noise, second.noise]))
         np.testing.assert_array_equal(t.mode, np.concatenate([first.mode, second.mode], axis=1))
+
+    def test_common_random_numbers_across_cells(self):
+        # cells differing only in a replication choice draw the same shocks per session
+        other = replace(CELL, price_grid="global", prehistory="cartel")
+        self.assertNotEqual(CELL.key(), other.key())
+        a, b = ShockStreams(7, CELL, 3), ShockStreams(7, other, 3)
+        self.assertEqual(a.initial_state(31, 10), b.initial_state(31, 10))
+        x, y = a.draw(50, 10), b.draw(50, 10)
+        for name in ("value_index", "noise", "mode", "action"):
+            np.testing.assert_array_equal(getattr(x, name), getattr(y, name), name)
+        # a different session index still gives a different path
+        z = ShockStreams(7, CELL, 4).draw(50, 10)
+        self.assertFalse(np.array_equal(x.noise, z.noise))
 
     def test_checkpoint_roundtrip(self):
         original = Session(LONG, 2, 9)
