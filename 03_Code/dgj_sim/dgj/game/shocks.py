@@ -2,7 +2,13 @@
 
 每个 session 拥有自己的一组随机流，互不影响、可复现、与执行顺序无关：
 
-    spawn_key = (experiment_seed, cell_key32, session_index, stream_id)
+    spawn_key = (experiment_seed, session_index, stream_id)
+
+The cell key is deliberately NOT part of the stream identity: cells that differ
+only in a replication choice (price grid, prehistory, ...) see the same values,
+noise and exploration draws for the same session index (common random numbers),
+so cell comparisons can be paired session by session.
+单元键不参与随机流：只在复现选择上不同的单元，在相同 session 编号下抽到相同的随机数（共同随机数），可逐个 session 配对比较。
 
 Streams / 随机流:
     0 initial_state   uniform s_0 over P x V x V
@@ -54,7 +60,7 @@ class ShockStreams:
     def _generator(self, stream_id: int) -> np.random.Generator:
         seq = np.random.SeedSequence(
             entropy=self.experiment_seed,
-            spawn_key=(int(self.cell_key[:8], 16), self.session_index, stream_id),
+            spawn_key=(self.session_index, stream_id),
         )
         return np.random.Generator(np.random.PCG64(seq))
 
@@ -89,5 +95,5 @@ class ShockStreams:
             "cell_key": self.cell_key,
             "session_index": self.session_index,
             "streams": 3 + 2 * self.number_of_speculators,
-            "rng": "numpy PCG64 via SeedSequence(entropy, spawn_key=(cell32, session, stream))",
+            "rng": "numpy PCG64 via SeedSequence(entropy, spawn_key=(session, stream)); common across cells",
         }

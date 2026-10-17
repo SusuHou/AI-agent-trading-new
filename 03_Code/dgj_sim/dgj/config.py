@@ -89,5 +89,5 @@ class ExperimentCell:
         return hashlib.sha256(blob).hexdigest()[:16]
 
     def key_uint32(self) -> int:
-        """First 32 bits of the key, used as a SeedSequence spawn key."""
+        """First 32 bits of the key, used as a SeedSequence spawn key (IRF only; training shocks are common across cells)."""
         return int(self.key()[:8], 16)
