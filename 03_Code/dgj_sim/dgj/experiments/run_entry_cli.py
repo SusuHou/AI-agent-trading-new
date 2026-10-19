@@ -54,6 +54,7 @@ def build_cell(a: argparse.Namespace) -> EntryCell:
         base=base, action_grid=a.action_grid, exploration_floor=a.floor,
         entry_period=0 if a.entry_on_convergence else a.entry_period,
         entry_on_convergence=a.entry_on_convergence, alone_cap=a.alone_cap if a.entry_on_convergence else 0,
+        incumbent_init=a.incumbent_init, lagged_price=not a.no_lagged_price,
     )
 
 
@@ -75,6 +76,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--entry-on-convergence", action="store_true")
     p.add_argument("--alone-cap", type=int, default=0)
     p.add_argument("--stop-after-alone", action="store_true")
+    p.add_argument("--incumbent-init", default="dou", choices=["dou", "lone"], help="diagnostic T1")
+    p.add_argument("--no-lagged-price", action="store_true", help="diagnostic T2")
     p.add_argument("--convergence-periods", type=int, default=1_000_000)
     p.add_argument("--measurement-periods", type=int, default=100_000)
     p.add_argument("--work-periods", type=int, default=5_000_000_000)
@@ -137,7 +140,8 @@ def main(argv=None) -> int:
                   f" ({'capped' if s.alone_capped else 'incumbent converged'})", flush=True)
             if a.stop_after_alone:
                 s.save_entry_checkpoint(ckpt_path, chunk_size=a.chunk_size)
-                _write_json(progress_path, {"status": "alone_done", **s.entry_manifest()})
+                _write_json(progress_path, {"status": "alone_done", "incumbent_play": s.incumbent_play(),
+                                            **s.entry_manifest()})
                 return 0
         if chunks % a.checkpoint_every == 0:
             s.save_entry_checkpoint(ckpt_path, chunk_size=a.chunk_size)

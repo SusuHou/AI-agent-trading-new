@@ -112,3 +112,38 @@ def run_periods_entry(
         if cursor[C_STREAK] >= streak_target and (all_active or not require_all_active):
             return k + 1, True
     return n_periods, False
+
+
+@njit
+def play_frozen(
+    policy, cursor, hist, stats, orders, value_grid, price_grid,
+    value_draws, noise_draws, pricing_error_weight, investor_slope, value_mean, window,
+    n_periods, active, use_lagged_price, out_actions, out_values,
+):
+    """Frozen greedy play (lowest-index tie rule), no learning; agents with active[i] False
+    submit nothing. Records each active agent's action index and v_t. Market maker keeps rolling.
+    / 冻结策略下的实际交易：用于衡量在位者真正下多大的单。
+    """
+    I = policy.shape[0]
+    n_v = value_grid.shape[0]
+    for k in range(n_periods):
+        s = encode(cursor[C_P_IDX], cursor[C_V_LAG], cursor[C_V_CUR], n_v)
+        v_cur = cursor[C_V_CUR]
+        y = noise_draws[k]
+        x_own = np.zeros(I)
+        for i in range(I):
+            if active[i]:
+                a = policy_module.lowest_action(policy[i, s])
+                out_actions[i, k] = a
+                x_own[i] = orders[v_cur, a]
+                y += x_own[i]
+            else:
+                out_actions[i, k] = -1
+        out_values[k] = value_grid[v_cur]
+        p, lam = adaptive.quote(stats, y, pricing_error_weight)
+        z = demand(p, investor_slope, value_mean)
+        adaptive.observe(hist, stats, cursor, window, value_grid[v_cur], p, z, y)
+        cursor[C_P_IDX] = price_to_index(p, price_grid[v_cur]) if use_lagged_price else 0
+        cursor[C_V_LAG] = v_cur
+        cursor[C_V_CUR] = value_draws[k]
+        cursor[C_T] += 1

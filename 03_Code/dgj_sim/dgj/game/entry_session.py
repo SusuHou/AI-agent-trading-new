@@ -193,6 +193,33 @@ class EntrySession(base_session.Session):
         finally:
             self.state.visits = visits
 
+    def incumbent_play(self, n_periods: int = 100_000) -> dict:
+        """What the incumbent actually trades under its frozen greedy policy, alone.
+
+        Runs on COPIES of the state (the session itself is not advanced). Returns the traded
+        intensity chi_hat (least squares of x on v - v_bar) and the action frequencies.
+        """
+        st, g, p = self.state, self.grids, self.p
+        cursor, hist, stats = st.cursor.copy(), st.hist.copy(), st.stats.copy()
+        rng = np.random.default_rng([self.session_index, 7_777])          # not the training streams
+        vals = rng.integers(p.num_value_points, size=n_periods).astype(np.int64)
+        noise = rng.normal(0.0, p.noise_std, size=n_periods)
+        acts = np.empty((p.num_speculators, n_periods), dtype=np.int64)
+        v = np.empty(n_periods)
+        active = np.array([True, False])
+        entry_protocol.play_frozen(
+            st.policy, cursor, hist, stats, g.orders, g.value_grid, g.price_grid, vals, noise,
+            p.pricing_error_weight, p.investor_slope, p.value_mean, p.market_maker_window,
+            n_periods, active, self.entry_cell.lagged_price, acts, v,
+        )
+        a = acts[0]
+        x = g.orders[np.searchsorted(g.value_grid, v), a]
+        dv = v - p.value_mean
+        freq = np.bincount(a, minlength=g.orders.shape[1]) / n_periods
+        return {"chi_hat": float((x * dv).sum() / (dv * dv).sum()),
+                "action_freq": [round(float(f), 4) for f in freq],
+                "modal_action": int(freq.argmax())}
+
     # ------------------------------------------------------------------
     def entry_manifest(self) -> dict:
         return {
