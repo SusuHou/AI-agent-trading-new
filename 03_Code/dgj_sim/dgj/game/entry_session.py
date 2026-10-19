@@ -51,6 +51,8 @@ class EntryCell:
     entry_period: int = 0                # clock entry of agent 1 (0 = simultaneous start)
     entry_on_convergence: bool = False   # stage 3: enter when the lone incumbent converges
     alone_cap: int = 0                   # stage 3 cap on the alone phase (periods)
+    incumbent_init: str = "dou"          # "dou" (uniform rival, I = 2) | "lone" (no rival): diagnostic T1
+    lagged_price: bool = True            # False: no p_{t-1} in the state: diagnostic T2
 
     def __post_init__(self) -> None:
         if self.base.parameters.num_speculators != 2:
@@ -64,7 +66,9 @@ class EntryCell:
         if self.entry_on_convergence and self.alone_cap <= 0:
             raise ValueError("entry_on_convergence needs a positive alone_cap")
         if not self.base.state_includes_lagged_price:
-            raise ValueError("entry cells keep the lagged price in the state")
+            raise ValueError("use EntryCell.lagged_price, not the base cell's flag")
+        if self.incumbent_init not in ("dou", "lone"):
+            raise ValueError("incumbent_init must be 'dou' or 'lone'")
 
     def to_dict(self) -> dict:
         d = self.base.to_dict()
@@ -76,6 +80,11 @@ class EntryCell:
             "alone_cap": self.alone_cap,
             "schema": ENTRY_SCHEMA_VERSION,
         }
+        # diagnostics recorded only when switched on, so existing cells keep their keys
+        if self.incumbent_init != "dou":
+            d["entry"]["incumbent_init"] = self.incumbent_init
+        if not self.lagged_price:
+            d["entry"]["lagged_price"] = False
         return d
 
     def key(self) -> str:
@@ -116,6 +125,15 @@ class EntrySession(base_session.Session):
             self.phase = "alone"
         else:
             self.entry_period[1] = cell.entry_period
+        if cell.incumbent_init == "lone":
+            g = self.grids
+            lone = q_learning.initial_q_block(
+                g.value_grid, self.p.value_mean, g.orders, 1, g.nash.price_impact, self.p.discount_factor
+            )
+            self.state.Q[0] = np.tile(lone, (self.p.num_price_points * self.p.num_value_points, 1))
+            self.state.policy[...] = policy_module.initial_policy(self.state.Q)
+        if not cell.lagged_price:
+            self.state.cursor[base_session.C_P_IDX] = 0
         self.alone_converged_at: int | None = None
         self.alone_capped = False
 
@@ -127,7 +145,7 @@ class EntrySession(base_session.Session):
             shocks.value_index, shocks.noise, shocks.mode, shocks.action,
             p.learning_rate, p.discount_factor, p.exploration_decay, self.entry_cell.exploration_floor,
             p.pricing_error_weight, p.investor_slope, p.value_mean, p.market_maker_window,
-            n, p.convergence_periods, self.entry_period, require_all_active,
+            n, p.convergence_periods, self.entry_period, require_all_active, self.entry_cell.lagged_price,
         )
 
     def _enter_now(self, *, capped: bool) -> None:

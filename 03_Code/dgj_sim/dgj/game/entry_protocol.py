@@ -14,6 +14,7 @@ entry-timing experiments (EXPERIMENT_PLAN_PAPER.md, items 1-3):
 Convergence streak: reset when an ACTIVE agent's greedy policy changes. The kernel stops
 when the streak reaches ``streak_target`` and either every agent is active or
 ``require_all_active`` is False (used for the lone-incumbent phase of stage 3).
+``use_lagged_price=False`` fixes the price index at 0 (diagnostic T2, as Dou's negative control).
 """
 
 import numpy as np
@@ -33,7 +34,7 @@ def run_periods_entry(
     value_draws, noise_draws, mode_draws, action_draws,
     learning_rate, discount_factor, exploration_decay, exploration_floor,
     pricing_error_weight, investor_slope, value_mean, window,
-    n_periods, streak_target, entry_period, require_all_active,
+    n_periods, streak_target, entry_period, require_all_active, use_lagged_price,
 ):
     """Run up to n_periods of training; returns (periods_run, converged)."""
     I = Q.shape[0]
@@ -88,7 +89,7 @@ def run_periods_entry(
 
         # 6. next state; Q update for active agents only
         v_next = value_draws[k]
-        p_next = price_to_index(p, price_grid[v_cur])
+        p_next = price_to_index(p, price_grid[v_cur]) if use_lagged_price else 0
         base = next_block(p_next, v_cur, n_v)
         changed = False
         for i in range(I):

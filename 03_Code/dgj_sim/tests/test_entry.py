@@ -138,5 +138,33 @@ class TestCli(unittest.TestCase):
         self.assertEqual(run_entry_cli.clock_entry_period(0.01, 5e-7, 10), 92_103_404)
 
 
+
+class TestDiagnostics(unittest.TestCase):
+    def test_default_key_unchanged_by_new_fields(self):
+        # key of the Narval measure-first cell (submitted at a619f04) must not move
+        base = ExperimentCell(parameters=PaperParameters())
+        cell = EntryCell(base=base, entry_on_convergence=True, alone_cap=2_000_000_000)
+        self.assertNotIn("incumbent_init", cell.to_dict()["entry"])
+        self.assertNotIn("lagged_price", cell.to_dict()["entry"])
+
+    def test_lone_init_favours_monopolist(self):
+        cell = EntryCell(base=small_base(), incumbent_init="lone")
+        s = EntrySession(cell, 0, SEED)
+        from dgj.players.speculator import policy as pm
+        idx = {pm.lowest_action(int(m)) for m in s.state.policy[0]}
+        self.assertEqual(idx, {13})
+        dou = EntrySession(EntryCell(base=small_base()), 0, SEED)
+        self.assertEqual({pm.lowest_action(int(m)) for m in dou.state.policy[0]}, {4})
+        self.assertTrue(np.array_equal(s.state.Q[1], dou.state.Q[1]))   # entrant keeps Dou's values
+
+    def test_no_lagged_price_keeps_index_zero(self):
+        cell = EntryCell(base=small_base(), lagged_price=False)
+        s = EntrySession(cell, 0, SEED)
+        s.advance(5_000, chunk_size=1_000)
+        from dgj.players.speculator.state_space import decode
+        touched = np.nonzero((s.state.Q[0] != EntrySession(cell, 0, SEED).state.Q[0]).any(axis=1))[0]
+        self.assertTrue(all(decode(int(r), 10)[0] == 0 for r in touched))
+
+
 if __name__ == "__main__":
     unittest.main()
