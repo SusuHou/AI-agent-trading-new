@@ -165,6 +165,19 @@ class TestDiagnostics(unittest.TestCase):
         touched = np.nonzero((s.state.Q[0] != EntrySession(cell, 0, SEED).state.Q[0]).any(axis=1))[0]
         self.assertTrue(all(decode(int(r), 10)[0] == 0 for r in touched))
 
+class TestConcurrentStart(unittest.TestCase):
+    def test_many_tasks_create_cell_json_together(self):
+        import subprocess, sys
+        with tempfile.TemporaryDirectory() as d:
+            args = ["--out", d, "--seed", "1", "--entry-on-convergence", "--alone-cap", "3000",
+                    "--stop-after-alone", "--convergence-periods", "5", "--work-periods", "3000",
+                    "--chunk-size", "1000"]
+            env = dict(os.environ, OPENBLAS_NUM_THREADS="1", PYTHONPATH=os.getcwd())
+            procs = [subprocess.Popen([sys.executable, "-m", "dgj.experiments.run_entry_cli", "--session", str(k), *args],
+                                      env=env, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) for k in range(8)]
+            codes = [p.wait() for p in procs]
+            self.assertEqual(codes, [0] * 8, [p.stderr.read()[-300:] for p in procs])
+
 
 if __name__ == "__main__":
     unittest.main()

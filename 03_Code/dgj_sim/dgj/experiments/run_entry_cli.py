@@ -32,7 +32,7 @@ def _on_signal(_signum, _frame) -> None:
 
 
 def _write_json(path: str, payload: dict) -> None:
-    tmp = path + ".tmp"
+    tmp = f"{path}.{os.getpid()}.tmp"     # unique per process: array tasks start together
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, sort_keys=True)
     os.replace(tmp, path)
@@ -99,13 +99,12 @@ def main(argv=None) -> int:
     os.makedirs(a.out, exist_ok=True)
     cell_path = os.path.join(a.out, "cell.json")
     expected = {"entry_cell": cell.to_dict(), "entry_cell_key": cell.key(), "seed": a.seed, "chunk_size": a.chunk_size}
-    if os.path.exists(cell_path):
-        with open(cell_path, encoding="utf-8") as f:
-            if json.load(f) != expected:
-                print(f"ERROR: {cell_path} describes a different cell or seed", file=sys.stderr)
-                return 2
-    else:
-        _write_json(cell_path, expected)
+    if not os.path.exists(cell_path):
+        _write_json(cell_path, expected)      # atomic; concurrent writers write the same content
+    with open(cell_path, encoding="utf-8") as f:
+        if json.load(f) != expected:
+            print(f"ERROR: {cell_path} describes a different cell or seed", file=sys.stderr)
+            return 2
 
     tag = f"{a.session:04d}"
     result_path = os.path.join(a.out, f"session_{tag}.json")
