@@ -4,11 +4,16 @@
 # Safe to rerun (resumes paused sessions from checkpoints). Then prints the summary.
 set -euo pipefail
 source "$HOME/venv-aitrading/bin/activate"
+export PYTHONNOUSERSITE=1   # ignore ~/.local packages
 cd "$HOME/scratch/AI-agent-trading-entry" && git fetch -q origin && git reset -q --hard origin/entry-timing
 HEAD=$(git rev-parse --short HEAD); echo "entry checkout at $HEAD"
 cd 03_Code/dgj_sim && mkdir -p logs
 RUNS="$HOME/scratch/ai-trading-runs"
 COMMON="--noise-std 0.1 --beta 5e-7 --action-grid wide --floor 0.01"
+if [[ "${CANCEL_PENDING:-0}" == "1" ]]; then
+  scancel -u "$USER" -t PENDING -n entryC0,entryS1,entryS2,entryS3 && echo "cancelled pending entry tasks"
+  sleep 5
+fi
 submit () {  # $1 name, $2 dir, $3 cell args
   local NAME="$1" D="$2" ARGS="$3"
   if [[ -n "$(squeue -u "$USER" -h -n "$NAME" -o %i)" ]]; then echo "$NAME: tasks in queue, skipped"; return; fi

@@ -10,6 +10,7 @@
 set -uo pipefail
 cd "${SLURM_SUBMIT_DIR:-$(pwd)}"
 source "$HOME/venv-aitrading/bin/activate"
+export PYTHONNOUSERSITE=1
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 PYTHONPATH="$PWD"
 export NUMBA_CACHE_DIR="${SLURM_TMPDIR:-/tmp}/numba_cache_read_$SLURM_JOB_ID"
 RUNS="$HOME/scratch/ai-trading-runs"
