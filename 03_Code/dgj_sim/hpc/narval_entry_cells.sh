@@ -4,28 +4,29 @@
 # Safe to rerun (resumes paused sessions from checkpoints). Then prints the summary.
 set -euo pipefail
 source "$HOME/venv-aitrading/bin/activate"
-export PYTHONNOUSERSITE=1   # ignore ~/.local packages
+VPY="$HOME/venv-aitrading/bin/python"   # called directly with -I: ignores PYTHONPATH and ~/.local from the login shell
+echo "login PYTHONPATH='${PYTHONPATH:-}'  python on PATH: $(command -v python)"
 cd "$HOME/scratch/AI-agent-trading-entry" && git fetch -q origin && git reset -q --hard origin/entry-timing
 HEAD=$(git rev-parse --short HEAD); echo "entry checkout at $HEAD"
 cd 03_Code/dgj_sim && mkdir -p logs
 RUNS="$HOME/scratch/ai-trading-runs"
 COMMON="--noise-std 0.1 --beta 5e-7 --action-grid wide --floor 0.01"
-if [[ "${CANCEL_PENDING:-0}" == "1" ]]; then
-  scancel -u "$USER" -t PENDING -n entryC0,entryS1,entryS2,entryS3 && echo "cancelled pending entry tasks"
-  sleep 5
-fi
 submit () {  # $1 name, $2 dir, $3 cell args
   local NAME="$1" D="$2" ARGS="$3"
-  if [[ -n "$(squeue -u "$USER" -h -n "$NAME" -o %i)" ]]; then echo "$NAME: tasks in queue, skipped"; return; fi
   mkdir -p "$D"
-  local MISSING
-  MISSING=$(python - "$D" <<'PY'
+  local QUEUED MISSING
+  QUEUED=$(squeue -u "$USER" -h -n "$NAME" -r -o %K | tr '
+' ',')     # array indices already queued/running
+  MISSING=$("$VPY" -I - "$D" "$QUEUED" <<'PY'
 import os, sys
-d = sys.argv[1]
-print(",".join(str(k) for k in range(100) if not os.path.exists(os.path.join(d, f"session_{k:04d}.json"))))
+d, queued = sys.argv[1], {int(x) for x in sys.argv[2].split(",") if x.strip().isdigit()}
+print(",".join(str(k) for k in range(100)
+               if k not in queued and not os.path.exists(os.path.join(d, f"session_{k:04d}.json"))))
 PY
 )
-  if [[ -z "$MISSING" ]]; then echo "$NAME: 100/100 complete"; return; fi
+  [[ -n "$QUEUED" ]] && echo "$NAME: $(echo "$QUEUED" | tr ',' '
+' | grep -c .) tasks already queued/running (left alone)"
+  if [[ -z "$MISSING" ]]; then echo "$NAME: nothing to submit"; return; fi
   local J N
   N=$(echo "$MISSING" | tr ',' '\n' | wc -l)
   J=$(OUT="$D" SEED=20261019 WORK_PERIODS=20000000000 CELL_ARGS="$COMMON $ARGS" \
@@ -40,5 +41,5 @@ submit entryS3 "$RUNS/entry_s3_low_b5e-7" "--entry-on-convergence --alone-cap 20
 sleep 20
 squeue -u "$USER" -h -o "%j %T" | sort | uniq -c
 echo "=== SUMMARY (complete sessions only) ==="
-python hpc/read_entry_cells.py "$RUNS/entry_c0_low_b5e-7" "$RUNS/entry_s1_low_b5e-7" "$RUNS/entry_s2_low_b5e-7" "$RUNS/entry_s3_low_b5e-7"
+"$VPY" -I hpc/read_entry_cells.py "$RUNS/entry_c0_low_b5e-7" "$RUNS/entry_s1_low_b5e-7" "$RUNS/entry_s2_low_b5e-7" "$RUNS/entry_s3_low_b5e-7"
 echo DONE
