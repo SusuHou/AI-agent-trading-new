@@ -53,6 +53,7 @@ class EntryCell:
     alone_cap: int = 0                   # stage 3 cap on the alone phase (periods)
     incumbent_init: str = "dou"          # "dou" (uniform rival, I = 2) | "lone" (no rival): diagnostic T1
     lagged_price: bool = True            # False: no p_{t-1} in the state: diagnostic T2
+    reset_incumbent_at_entry: bool = False  # test A: incumbent's visit counts set to 0 at entry (eps back to 1)
 
     def __post_init__(self) -> None:
         if self.base.parameters.num_speculators != 2:
@@ -85,6 +86,8 @@ class EntryCell:
             d["entry"]["incumbent_init"] = self.incumbent_init
         if not self.lagged_price:
             d["entry"]["lagged_price"] = False
+        if self.reset_incumbent_at_entry:
+            d["entry"]["reset_incumbent_at_entry"] = True
         return d
 
     def key(self) -> str:
@@ -136,6 +139,7 @@ class EntrySession(base_session.Session):
             self.state.cursor[base_session.C_P_IDX] = 0
         self.alone_converged_at: int | None = None
         self.alone_capped = False
+        self.incumbent_reset_at: int | None = None     # period at which test A reset the incumbent's visits
 
     # ------------------------------------------------------------------
     def _entry_args(self, shocks, n, require_all_active):
@@ -163,6 +167,10 @@ class EntrySession(base_session.Session):
         t0 = time.perf_counter()
         end = self.periods_completed + work_periods
         while self.phase in ("alone", "training") and self.periods_completed < end:
+            if (self.entry_cell.reset_incumbent_at_entry and self.phase == "training"
+                    and self.incumbent_reset_at is None and self.periods_completed >= self.entry_period[1]):
+                self.state.visits[0, :] = 0           # incumbent explores afresh, like the entrant
+                self.incumbent_reset_at = self.periods_completed
             n = chunk_size
             if self.phase == "alone":
                 n = min(n, self.entry_cell.alone_cap - self.periods_completed)
@@ -228,6 +236,7 @@ class EntrySession(base_session.Session):
             "entry_period": int(self.entry_period[1]),
             "alone_converged_at": self.alone_converged_at,
             "alone_capped": self.alone_capped,
+            "incumbent_reset_at": self.incumbent_reset_at,
             "converged_at": self.converged_at,
             "periods_completed": self.periods_completed,
             "policy_changes_seen": self.policy_changes_seen,
@@ -252,6 +261,7 @@ class EntrySession(base_session.Session):
             phase=self.phase,
             alone_converged_at=-1 if self.alone_converged_at is None else self.alone_converged_at,
             alone_capped=self.alone_capped,
+            incumbent_reset_at=-1 if self.incumbent_reset_at is None else self.incumbent_reset_at,
             converged_at=-1 if self.converged_at is None else self.converged_at,
             policy_changes_seen=self.policy_changes_seen,
             wall_time=json.dumps(self.wall_time),
@@ -281,6 +291,8 @@ class EntrySession(base_session.Session):
             a = int(d["alone_converged_at"])
             self.alone_converged_at = None if a < 0 else a
             self.alone_capped = bool(d["alone_capped"])
+            r = int(d["incumbent_reset_at"]) if "incumbent_reset_at" in d.files else -1
+            self.incumbent_reset_at = None if r < 0 else r
             c = int(d["converged_at"])
             self.converged_at = None if c < 0 else c
             self.policy_changes_seen = int(d["policy_changes_seen"])

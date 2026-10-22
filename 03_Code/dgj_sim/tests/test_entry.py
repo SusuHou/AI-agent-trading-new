@@ -178,6 +178,30 @@ class TestConcurrentStart(unittest.TestCase):
             codes = [p.wait() for p in procs]
             self.assertEqual(codes, [0] * 8, [p.stderr.read()[-300:] for p in procs])
 
+class TestResetAtEntry(unittest.TestCase):
+    def test_reset_incumbent_visits_at_clock_entry(self):
+        cell = EntryCell(base=small_base(), entry_period=5_000, reset_incumbent_at_entry=True)
+        s = EntrySession(cell, 0, SEED)
+        s.advance(5_000, chunk_size=1_000)
+        self.assertEqual(int(s.state.visits[0].sum()), 5_000)       # not yet reset
+        s.advance(2_000, chunk_size=1_000)
+        self.assertEqual(s.incumbent_reset_at, 5_000)
+        self.assertEqual(int(s.state.visits[0].sum()), 2_000)       # counted afresh, like the entrant
+        self.assertTrue(np.array_equal(s.state.visits[0], s.state.visits[1]))
+
+    def test_reset_survives_checkpoint_and_key_unchanged_when_off(self):
+        self.assertNotIn("reset_incumbent_at_entry", EntryCell(base=small_base()).to_dict()["entry"])
+        cell = EntryCell(base=small_base(), entry_period=2_000, reset_incumbent_at_entry=True)
+        a = EntrySession(cell, 1, SEED); a.advance(6_000, chunk_size=1_000)
+        b = EntrySession(cell, 1, SEED); b.advance(3_000, chunk_size=1_000)
+        with tempfile.TemporaryDirectory() as d:
+            path = os.path.join(d, "ck.npz"); b.save_entry_checkpoint(path, chunk_size=1_000)
+            c = EntrySession(cell, 1, SEED); c.load_entry_checkpoint(path, chunk_size=1_000)
+        self.assertEqual(c.incumbent_reset_at, 2_000)
+        c.advance(3_000, chunk_size=1_000)
+        self.assertTrue(np.array_equal(a.state.Q, c.state.Q))
+        self.assertTrue(np.array_equal(a.state.visits, c.state.visits))
+
 
 if __name__ == "__main__":
     unittest.main()
