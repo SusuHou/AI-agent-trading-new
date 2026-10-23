@@ -202,6 +202,29 @@ class TestResetAtEntry(unittest.TestCase):
         self.assertTrue(np.array_equal(a.state.Q, c.state.Q))
         self.assertTrue(np.array_equal(a.state.visits, c.state.visits))
 
+class TestJointCap(unittest.TestCase):
+    def test_cap_after_entry_freezes_and_measures(self):
+        cell = EntryCell(base=small_base(convergence_periods=10**9), entry_period=2_000, joint_cap=3_000)
+        s = EntrySession(cell, 0, SEED)
+        s.advance(20_000, chunk_size=1_000)
+        self.assertEqual(s.phase, "converged")
+        self.assertTrue(s.joint_capped)
+        self.assertIsNone(s.converged_at)
+        self.assertEqual(s.periods_completed, 5_000)
+        self.assertEqual(s.measure().shape[0], 1_000)
+        self.assertNotIn("joint_cap", EntryCell(base=small_base()).to_dict()["entry"])
+
+    def test_cli_capped_session_writes_result(self):
+        with tempfile.TemporaryDirectory() as d:
+            args = ["--out", d, "--session", "0", "--seed", str(SEED), "--entry-period", "0", "--joint-cap", "3000",
+                    "--convergence-periods", "1000000000", "--measurement-periods", "1000",
+                    "--work-periods", "10000", "--chunk-size", "1000"]
+            self.assertEqual(run_entry_cli.main(args), 0)
+            import json as _j
+            r = _j.load(open(os.path.join(d, "session_0000.json")))
+            self.assertTrue(r["joint_capped"])
+            self.assertIsNone(r["converged_at"])
+
 
 if __name__ == "__main__":
     unittest.main()

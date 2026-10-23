@@ -31,12 +31,13 @@ for name, res in cells:
     dc = [r["delta_c"] for r in v]
     a0 = [r["delta_by_agent"][0] for r in v]
     a1 = [r["delta_by_agent"][1] for r in v]
-    tc = [r["converged_at"] / 1e9 for r in v]
+    tc = [(r["converged_at"] if r["converged_at"] is not None else r["periods_completed"]) / 1e9 for r in v]
+    capped = sum(1 for r in v if r.get("joint_capped"))
     ent = [r["entry_period"] / 1e6 for r in v]
     chi0 = [r["mean_order_multiplier_by_agent"][0] for r in v]
     chi1 = [r["mean_order_multiplier_by_agent"][1] for r in v]
     print(f"=== {name}: complete {len(v)}  entry (M) median {st.median(ent):.0f}  "
-          f"joint convergence (B) median {st.median(tc):.2f} max {max(tc):.2f}")
+          f"joint convergence (B) median {st.median(tc):.2f} max {max(tc):.2f}  capped {capped}")
     print(f"  dC mean {st.mean(dc):.3f} sd {sd(dc):.3f} | incumbent {st.mean(a0):.3f} | entrant {st.mean(a1):.3f}"
           f" | traded chi incumbent {st.mean(chi0):.1f} entrant {st.mean(chi1):.1f}")
     if name != ctrl_name:

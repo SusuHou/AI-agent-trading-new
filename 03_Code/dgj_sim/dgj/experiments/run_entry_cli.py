@@ -55,7 +55,7 @@ def build_cell(a: argparse.Namespace) -> EntryCell:
         entry_period=0 if a.entry_on_convergence else a.entry_period,
         entry_on_convergence=a.entry_on_convergence, alone_cap=a.alone_cap if a.entry_on_convergence else 0,
         incumbent_init=a.incumbent_init, lagged_price=not a.no_lagged_price,
-        reset_incumbent_at_entry=a.reset_incumbent_at_entry,
+        reset_incumbent_at_entry=a.reset_incumbent_at_entry, joint_cap=a.joint_cap,
     )
 
 
@@ -80,6 +80,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--incumbent-init", default="dou", choices=["dou", "lone"], help="diagnostic T1")
     p.add_argument("--no-lagged-price", action="store_true", help="diagnostic T2")
     p.add_argument("--reset-incumbent-at-entry", action="store_true", help="test A: incumbent explores afresh at entry")
+    p.add_argument("--joint-cap", type=int, default=0, help="stop joint training this many periods after entry (0 = none)")
     p.add_argument("--convergence-periods", type=int, default=1_000_000)
     p.add_argument("--measurement-periods", type=int, default=100_000)
     p.add_argument("--work-periods", type=int, default=5_000_000_000)
@@ -90,7 +91,7 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv=None) -> int:
     a = _parser().parse_args(argv)
-    for name in ("work_periods", "alone_cap", "entry_period"):
+    for name in ("work_periods", "alone_cap", "entry_period", "joint_cap"):
         if getattr(a, name) % a.chunk_size:
             print(f"ERROR: --{name.replace('_', '-')} must be a multiple of --chunk-size", file=sys.stderr)
             return 2

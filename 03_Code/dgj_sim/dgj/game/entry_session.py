@@ -54,6 +54,7 @@ class EntryCell:
     incumbent_init: str = "dou"          # "dou" (uniform rival, I = 2) | "lone" (no rival): diagnostic T1
     lagged_price: bool = True            # False: no p_{t-1} in the state: diagnostic T2
     reset_incumbent_at_entry: bool = False  # test A: incumbent's visit counts set to 0 at entry (eps back to 1)
+    joint_cap: int = 0                   # >0: stop joint training this many periods after entry, measure, flag
 
     def __post_init__(self) -> None:
         if self.base.parameters.num_speculators != 2:
@@ -70,6 +71,8 @@ class EntryCell:
             raise ValueError("use EntryCell.lagged_price, not the base cell's flag")
         if self.incumbent_init not in ("dou", "lone"):
             raise ValueError("incumbent_init must be 'dou' or 'lone'")
+        if self.joint_cap < 0:
+            raise ValueError("joint_cap must be non-negative")
 
     def to_dict(self) -> dict:
         d = self.base.to_dict()
@@ -88,6 +91,8 @@ class EntryCell:
             d["entry"]["lagged_price"] = False
         if self.reset_incumbent_at_entry:
             d["entry"]["reset_incumbent_at_entry"] = True
+        if self.joint_cap:
+            d["entry"]["joint_cap"] = self.joint_cap
         return d
 
     def key(self) -> str:
@@ -140,6 +145,7 @@ class EntrySession(base_session.Session):
         self.alone_converged_at: int | None = None
         self.alone_capped = False
         self.incumbent_reset_at: int | None = None     # period at which test A reset the incumbent's visits
+        self.joint_capped = False                      # True: measured at the cap, not at convergence
 
     # ------------------------------------------------------------------
     def _entry_args(self, shocks, n, require_all_active):
@@ -189,6 +195,10 @@ class EntrySession(base_session.Session):
             elif converged:
                 self.converged_at = self.periods_completed
                 self.phase = "converged"
+            elif (self.entry_cell.joint_cap
+                  and self.periods_completed - int(self.entry_period[1]) >= self.entry_cell.joint_cap):
+                self.joint_capped = True             # common-horizon reading (Atanasova B.2): freeze and measure
+                self.phase = "converged"
         self.wall_time["training"] += time.perf_counter() - t0
         return self.phase
 
@@ -237,6 +247,7 @@ class EntrySession(base_session.Session):
             "alone_converged_at": self.alone_converged_at,
             "alone_capped": self.alone_capped,
             "incumbent_reset_at": self.incumbent_reset_at,
+            "joint_capped": self.joint_capped,
             "converged_at": self.converged_at,
             "periods_completed": self.periods_completed,
             "policy_changes_seen": self.policy_changes_seen,
@@ -262,6 +273,7 @@ class EntrySession(base_session.Session):
             alone_converged_at=-1 if self.alone_converged_at is None else self.alone_converged_at,
             alone_capped=self.alone_capped,
             incumbent_reset_at=-1 if self.incumbent_reset_at is None else self.incumbent_reset_at,
+            joint_capped=self.joint_capped,
             converged_at=-1 if self.converged_at is None else self.converged_at,
             policy_changes_seen=self.policy_changes_seen,
             wall_time=json.dumps(self.wall_time),
@@ -293,6 +305,7 @@ class EntrySession(base_session.Session):
             self.alone_capped = bool(d["alone_capped"])
             r = int(d["incumbent_reset_at"]) if "incumbent_reset_at" in d.files else -1
             self.incumbent_reset_at = None if r < 0 else r
+            self.joint_capped = bool(d["joint_capped"]) if "joint_capped" in d.files else False
             c = int(d["converged_at"])
             self.converged_at = None if c < 0 else c
             self.policy_changes_seen = int(d["policy_changes_seen"])
