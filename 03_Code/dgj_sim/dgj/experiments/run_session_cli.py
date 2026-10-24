@@ -61,6 +61,10 @@ def build_cell(arguments: argparse.Namespace) -> ExperimentCell:
         "discount_factor": arguments.rho,
         "investor_slope": arguments.xi,
     }
+    if arguments.beta is not None:
+        changes["exploration_decay"] = arguments.beta
+    if arguments.alpha is not None:
+        changes["learning_rate"] = arguments.alpha
     if arguments.convergence_periods:
         changes["convergence_periods"] = arguments.convergence_periods
     if arguments.measurement_periods:
@@ -434,6 +438,8 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="negative control: remove p_{t-1} from the state (Dou et al., p. 32)",
     )
+    parser.add_argument("--beta", type=float, default=None, help="exploration decay (default: paper's 5e-7)")
+    parser.add_argument("--alpha", type=float, default=None, help="learning rate (default: paper's 0.01)")
     parser.add_argument("--convergence-periods", type=int, default=None)
     parser.add_argument("--measurement-periods", type=int, default=None)
     parser.add_argument(
