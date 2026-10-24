@@ -428,7 +428,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--rho", type=float, default=0.95)
     parser.add_argument("--xi", type=float, default=500.0)
     parser.add_argument("--prehistory", default="nash", choices=["nash", "cartel"])
-    parser.add_argument("--price-grid", default="per_value", choices=["per_value", "global"])
+    parser.add_argument("--price-grid", default="per_value", choices=["per_value", "per_value_interval", "global"])
     parser.add_argument(
         "--no-lagged-price",
         action="store_true",

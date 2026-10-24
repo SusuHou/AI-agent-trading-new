@@ -63,7 +63,7 @@ class ExperimentCell:
     label: str = "baseline_low_noise"
     prehistory: str = "nash"           # A3: how D_0 is built ("nash" | "cartel")
     price_mapping: str = "nearest"     # A2: continuous p -> P (nearest, clip, tie -> lower)
-    price_grid: str = "per_value"      # A5: P(v_{t-1}) per value (footnote 25) | "global" (steps/ reading)
+    price_grid: str = "per_value"      # A5: P(v_{t-1}) per value (footnote 25) | "per_value_interval" (equal-width bins, Atanasova 2026) | "global" (steps/ reading)
     training_tie_rule: str = "uniform"  # exact Q ties during exploitation in training
     measurement_tie_rule: str = "lowest_index"  # frozen greedy policy after convergence
     # Negative control (Dou et al., Section 5, printed p. 32): False removes p_{t-1} from the

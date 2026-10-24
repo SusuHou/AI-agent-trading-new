@@ -91,7 +91,8 @@ def cell_from_dir(out_dir: str) -> ExperimentCell:
     return ExperimentCell(parameters=PaperParameters(**d["parameters"]), label=d["label"],
                           prehistory=d["prehistory"], price_mapping=d["price_mapping"],
                           price_grid=d.get("price_grid", "global"),
-                          training_tie_rule=d["training_tie_rule"], measurement_tie_rule=d["measurement_tie_rule"])
+                          training_tie_rule=d["training_tie_rule"], measurement_tie_rule=d["measurement_tie_rule"],
+                          state_includes_lagged_price=d.get("state_includes_lagged_price", True))
 
 
 def main() -> None:

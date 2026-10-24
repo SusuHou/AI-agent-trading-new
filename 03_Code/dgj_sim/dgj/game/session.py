@@ -106,14 +106,23 @@ def build_grids(cell: ExperimentCell) -> Grids:
     # price grid, paper 4.2: p_H/L = v_bar + lambda^N (I max/min{x^M, x^N} +/- 1.96 sigma_u), then iota widening.
     # A5: max/min{x^M, x^N} is evaluated at each v (as for X), giving P(v) with one action step ~ one
     # price step (footnote 25). "global" takes max/min over the whole grid instead (the steps/ reading).
+    # "per_value_interval": the same interval split into n_p EQUAL-WIDTH bins (Atanasova 2026 reading:
+    # one action step ~ 1.1 bin widths). Mapping a price to the nearest bin CENTRE is exactly interval
+    # binning with open-ended outer bins, so only the points move; the kernel is unchanged.
+    # / 区间分箱：把同一价格区间等分成 n_p 个区间；映射到最近的区间中心 = 区间分箱，内核不变。
     P = np.empty((p.num_value_points, p.num_price_points))
-    if cell.price_grid == "per_value":
+    if cell.price_grid in ("per_value", "per_value_interval"):
         for k, v in enumerate(V):
             xs = (nash.order(float(v), p.value_mean), cartel.order(float(v), p.value_mean))
             lower = p.value_mean + nash.price_impact * (p.num_speculators * min(xs) - 1.96 * p.noise_std)
             upper = p.value_mean + nash.price_impact * (p.num_speculators * max(xs) + 1.96 * p.noise_std)
             width = upper - lower
-            P[k] = np.linspace(lower - p.grid_widening * width, upper + p.grid_widening * width, p.num_price_points)
+            lo, hi = lower - p.grid_widening * width, upper + p.grid_widening * width
+            if cell.price_grid == "per_value":
+                P[k] = np.linspace(lo, hi, p.num_price_points)
+            else:
+                half_bin = (hi - lo) / (2 * p.num_price_points)
+                P[k] = np.linspace(lo + half_bin, hi - half_bin, p.num_price_points)
     elif cell.price_grid == "global":
         bench_orders = np.concatenate([nash.order(V, p.value_mean), cartel.order(V, p.value_mean)])
         lower = p.value_mean + nash.price_impact * (p.num_speculators * bench_orders.min() - 1.96 * p.noise_std)
@@ -121,7 +130,7 @@ def build_grids(cell: ExperimentCell) -> Grids:
         width = upper - lower
         P[:] = np.linspace(lower - p.grid_widening * width, upper + p.grid_widening * width, p.num_price_points)
     else:
-        raise ValueError("price_grid must be 'per_value' or 'global'")
+        raise ValueError("price_grid must be 'per_value', 'per_value_interval' or 'global'")
 
     q_block = q_learning.initial_q_block(V, p.value_mean, orders, p.num_speculators, nash.price_impact, p.discount_factor)
     return Grids(V, sigma_v_hat, nash, cartel, mult, orders, P, q_block)
