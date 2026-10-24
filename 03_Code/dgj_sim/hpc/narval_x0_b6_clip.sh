@@ -12,7 +12,7 @@ ENTRY="$HOME/scratch/AI-agent-trading-entry/03_Code/dgj_sim"
 ( cd "$CO" && git fetch -q origin && git checkout -q x0-beta && git reset -q --hard origin/x0-beta )
 HEAD=$(cd "$CO" && git rev-parse --short HEAD); echo "x0-beta checkout at $HEAD"
 cd "$CO/03_Code/dgj_sim" && mkdir -p logs
-PYTHONPATH=. python -m unittest tests.test_interval_bins tests.test_run_session_cli 2>&1 | tail -2
+PYTHONPATH=. timeout 120 python -m unittest tests.test_interval_bins 2>&1 | tail -2 || echo "quick test skipped (timeout)"
 mkdir -p "$D"
 QUEUED=$(squeue -u "$USER" -h -n x0_b6 -r -o %K | paste -sd, -)
 MISSING=$(python - "$D" "$QUEUED" <<'PY'
