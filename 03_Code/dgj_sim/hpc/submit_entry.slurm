@@ -25,11 +25,12 @@ python -c 'from dgj._jit import HAVE_NUMBA; assert HAVE_NUMBA'
 
 : "${OUT:?set OUT}" "${SEED:?set SEED}" "${CELL_ARGS:?set CELL_ARGS}"
 WORK_PERIODS="${WORK_PERIODS:-20000000000}"
+CHUNK="${CHUNK:-1000000}"                    # smaller for fast-decay beta cells (entry times below 1M)
 
 set +e
 srun python -m dgj.experiments.run_entry_cli \
     --out "$OUT" --session "$SLURM_ARRAY_TASK_ID" --seed "$SEED" \
-    $CELL_ARGS --work-periods "$WORK_PERIODS" --chunk-size 1000000 --checkpoint-every 200
+    $CELL_ARGS --work-periods "$WORK_PERIODS" --chunk-size "$CHUNK" --checkpoint-every 200
 status=$?
 set -e
 if [[ "$status" -eq 75 ]]; then

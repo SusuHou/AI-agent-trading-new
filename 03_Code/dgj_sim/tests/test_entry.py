@@ -225,6 +225,28 @@ class TestJointCap(unittest.TestCase):
             self.assertTrue(r["joint_capped"])
             self.assertIsNone(r["converged_at"])
 
+class TestAlignedFineMenu(unittest.TestCase):
+    def test_benchmarks_on_grid(self):
+        from dgj.game.entry_session import aligned_fine_multipliers
+        g = build_grids(EntryCell(base=small_base(), action_grid="aligned_fine"))
+        m = g.multipliers
+        self.assertEqual(len(m), 15)
+        self.assertAlmostEqual(m[1], g.cartel.intensity, places=9)
+        self.assertAlmostEqual(m[13], g.nash.intensity, places=9)
+        m43 = aligned_fine_multipliers(g.nash.intensity, g.cartel.intensity, 43)
+        self.assertLess(abs(m43[37] - 2 * g.cartel.intensity), 1e-3)
+
+    def test_cli_43_actions(self):
+        with tempfile.TemporaryDirectory() as d:
+            args = ["--out", d, "--session", "0", "--seed", str(SEED), "--entry-period", "0",
+                    "--action-grid", "aligned_fine", "--n-actions", "43", "--floor", "0",
+                    "--convergence-periods", "5", "--measurement-periods", "1000", "--beta", "1e-3",
+                    "--work-periods", "2000000", "--chunk-size", "1000"]
+            self.assertEqual(run_entry_cli.main(args), 0)
+            import json as _j
+            r = _j.load(open(os.path.join(d, "session_0000.json")))
+            self.assertEqual(len(r["multipliers"]), 43)
+
 
 if __name__ == "__main__":
     unittest.main()

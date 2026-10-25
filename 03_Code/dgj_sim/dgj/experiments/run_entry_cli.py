@@ -48,6 +48,7 @@ def build_cell(a: argparse.Namespace) -> EntryCell:
         num_speculators=2, noise_std=a.noise_std, exploration_decay=a.beta,
         learning_rate=a.alpha, discount_factor=a.rho, investor_slope=a.xi,
         convergence_periods=a.convergence_periods, measurement_periods=a.measurement_periods,
+        num_action_points=a.n_actions,
     )
     base = ExperimentCell(parameters=params, label=a.label, prehistory="nash", price_grid=a.price_grid)
     return EntryCell(
@@ -71,7 +72,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--rho", type=float, default=0.95)
     p.add_argument("--xi", type=float, default=500.0)
     p.add_argument("--price-grid", default="per_value", choices=["per_value", "global"])
-    p.add_argument("--action-grid", default="wide", choices=["wide", "dou"])
+    p.add_argument("--action-grid", default="wide", choices=["wide", "dou", "aligned_fine"])
+    p.add_argument("--n-actions", type=int, default=15)
     p.add_argument("--floor", type=float, default=0.01)
     p.add_argument("--entry-period", type=int, default=0)
     p.add_argument("--entry-on-convergence", action="store_true")

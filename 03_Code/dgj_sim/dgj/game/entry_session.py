@@ -35,6 +35,15 @@ ENTRY_SCHEMA_VERSION = 1
 NEVER = np.iinfo(np.int64).max // 4
 
 
+def aligned_fine_multipliers(nash_intensity: float, cartel_intensity: float, num_actions: int) -> np.ndarray:
+    """Menu test (2026-10-24): step (chi^N - chi^M)/12 from one step below cartel, so cartel (j=1) and Nash (j=13)
+    lie on the grid with a step close to Dou's; 15 points ~ Dou's range, 43 points reach the monopolist (j=37)."""
+    if nash_intensity <= cartel_intensity:
+        raise ValueError("calibration requires chi^N > chi^M")
+    step = (nash_intensity - cartel_intensity) / 12.0
+    return cartel_intensity + step * np.arange(-1, num_actions - 1)
+
+
 def wide_multipliers(nash_intensity: float, cartel_intensity: float, num_actions: int) -> np.ndarray:
     """Step = (chi^N - chi^M)/4, first point one step below cartel. / 宽网格。"""
     if nash_intensity <= cartel_intensity:
@@ -59,8 +68,8 @@ class EntryCell:
     def __post_init__(self) -> None:
         if self.base.parameters.num_speculators != 2:
             raise ValueError("entry cells have exactly two speculators")
-        if self.action_grid not in ("wide", "dou"):
-            raise ValueError("action_grid must be 'wide' or 'dou'")
+        if self.action_grid not in ("wide", "dou", "aligned_fine"):
+            raise ValueError("action_grid must be 'wide', 'dou' or 'aligned_fine'")
         if not 0.0 <= self.exploration_floor < 1.0:
             raise ValueError("exploration_floor must lie in [0, 1)")
         if self.entry_period < 0:
@@ -111,7 +120,8 @@ def build_grids(cell: EntryCell) -> base_session.Grids:
     if cell.action_grid == "dou":
         return g
     p = cell.base.parameters
-    mult = wide_multipliers(g.nash.intensity, g.cartel.intensity, p.num_action_points)
+    make = aligned_fine_multipliers if cell.action_grid == "aligned_fine" else wide_multipliers
+    mult = make(g.nash.intensity, g.cartel.intensity, p.num_action_points)
     orders = action_space.orders_table(g.value_grid, p.value_mean, mult)
     q_block = q_learning.initial_q_block(
         g.value_grid, p.value_mean, orders, p.num_speculators, g.nash.price_impact, p.discount_factor
