@@ -32,6 +32,11 @@ PY
   { echo "submitted_utc: $(date -u --iso-8601=seconds)"; echo "job_id: $J"; echo "commit: $HEAD"; echo "chunk: $CH"; echo "sessions: $MISSING"; } >> "$D/submission_receipt.txt"
   echo "$NAME: submitted $N sessions as job $J"
 }
+# Narval caps submitted jobs per user (AssocMaxSubmitJobLimit): menu test first (needed for Oct 27); if a
+# submission is refused, the rest are tried again on the next run.
+# menu test (simultaneous start, beta 5e-7, floor 0.01)
+submit eM1 "$R/entry_c0_low_alignfine15" 1000000 "--noise-std 0.1 --beta 5e-7 --floor 0.01 --entry-period 0 --action-grid aligned_fine --n-actions 15 --label entry_c0_low_alignfine15"
+submit eM2 "$R/entry_c0_low_alignfine43" 1000000 "--noise-std 0.1 --beta 5e-7 --floor 0.01 --entry-period 0 --action-grid aligned_fine --n-actions 43 --label entry_c0_low_alignfine43"
 # beta = 5e-8 (eps 0.1 at 460.5M, 0.01 at 921.0M)
 submit eB8C0 "$R/entry_c0_low_b5e-8" 1000000 "$LOW --beta 5e-8 --entry-period 0         --label entry_c0_low_b5e-8"
 submit eB8S1 "$R/entry_s1_low_b5e-8" 1000000 "$LOW --beta 5e-8 --entry-period 461000000 --label entry_s1_low_b5e-8"
@@ -47,9 +52,6 @@ submit eB5C0 "$R/entry_c0_low_b5e-5" 100000 "$LOW --beta 5e-5 --entry-period 0  
 submit eB5S1 "$R/entry_s1_low_b5e-5" 100000 "$LOW --beta 5e-5 --entry-period 500000 --label entry_s1_low_b5e-5"
 submit eB5S2 "$R/entry_s2_low_b5e-5" 100000 "$LOW --beta 5e-5 --entry-period 900000 --label entry_s2_low_b5e-5"
 submit eB5S3 "$R/entry_s3_low_b5e-5" 100000 "$LOW --beta 5e-5 --entry-on-convergence --alone-cap 2000000000 --label entry_s3_low_b5e-5"
-# menu test (simultaneous start, beta 5e-7, floor 0.01)
-submit eM1 "$R/entry_c0_low_alignfine15" 1000000 "--noise-std 0.1 --beta 5e-7 --floor 0.01 --entry-period 0 --action-grid aligned_fine --n-actions 15 --label entry_c0_low_alignfine15"
-submit eM2 "$R/entry_c0_low_alignfine43" 1000000 "--noise-std 0.1 --beta 5e-7 --floor 0.01 --entry-period 0 --action-grid aligned_fine --n-actions 43 --label entry_c0_low_alignfine43"
 sleep 15
 squeue -u "$USER" -h -o "%j %T" | sort | uniq -c
 echo "=== MENU TEST vs C0 (wide menu, 0.850) and a2 (Dou menu, 0.385) ==="
