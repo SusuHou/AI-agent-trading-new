@@ -20,6 +20,7 @@ import time
 
 from dgj.config import ExperimentCell, PaperParameters
 from dgj.game.entry_session import EntryCell, EntrySession
+from dgj.game import irf
 from dgj.metrics import collusion
 
 PAUSE = 75
@@ -57,6 +58,7 @@ def build_cell(a: argparse.Namespace) -> EntryCell:
         entry_on_convergence=a.entry_on_convergence, alone_cap=a.alone_cap if a.entry_on_convergence else 0,
         incumbent_init=a.incumbent_init, lagged_price=not a.no_lagged_price,
         reset_incumbent_at_entry=a.reset_incumbent_at_entry, joint_cap=a.joint_cap,
+        explore_turns=a.explore_turns,
     )
 
 
@@ -83,6 +85,8 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--no-lagged-price", action="store_true", help="diagnostic T2")
     p.add_argument("--reset-incumbent-at-entry", action="store_true", help="test A: incumbent explores afresh at entry")
     p.add_argument("--joint-cap", type=int, default=0, help="stop joint training this many periods after entry (0 = none)")
+    p.add_argument("--explore-turns", action="store_true", help="test M3 (Lambin): traders take turns exploring")
+    p.add_argument("--irf-paths", type=int, default=0, help="test M1: impulse-response paths after measurement (Dou: 10000)")
     p.add_argument("--convergence-periods", type=int, default=1_000_000)
     p.add_argument("--measurement-periods", type=int, default=100_000)
     p.add_argument("--work-periods", type=int, default=5_000_000_000)
@@ -157,8 +161,22 @@ def main(argv=None) -> int:
         print(f"session {a.session}: paused at {s.periods_completed:,} ({s.phase})", flush=True)
         return PAUSE
 
+    fork = irf.take_fork(s) if a.irf_paths > 0 else None    # converged market, before measurement (as run_session_cli)
     rows = s.measure()
     res = collusion.compute(rows, s.grids, 2, s.p.value_mean)
+    irf_payload = None
+    if a.irf_paths > 0:
+        baseline = irf.long_run_baseline(rows, 2, s.p.value_mean)
+        visits = s.state.visits
+        s.state.visits = visits[0].copy()     # Dou's frozen-policy kernel takes 1-D visits (never read when frozen)
+        try:
+            r = irf.run_irf(s, fork, baseline, paths=a.irf_paths)
+        finally:
+            s.state.visits = visits
+        irf_payload = {"paths": r.paths, "shock_magnitude": r.shock_magnitude, "mechanism": r.mechanism,
+                       "response_vs_control": list(r.response_vs_control),
+                       "response_vs_long_run": list(r.response_vs_long_run),
+                       "normalized_price_deviation": r.normalized_price_deviation.tolist()}
     payload = {
         "status": "complete",
         **s.entry_manifest(),
@@ -172,6 +190,8 @@ def main(argv=None) -> int:
             for i in range(2)
         ],
     }
+    if irf_payload is not None:
+        payload["irf"] = irf_payload
     _write_json(result_path, payload)
     _write_json(progress_path, {"status": "complete", **s.entry_manifest()})
     if os.path.exists(ckpt_path):

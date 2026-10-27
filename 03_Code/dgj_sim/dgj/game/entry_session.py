@@ -64,6 +64,7 @@ class EntryCell:
     lagged_price: bool = True            # False: no p_{t-1} in the state: diagnostic T2
     reset_incumbent_at_entry: bool = False  # test A: incumbent's visit counts set to 0 at entry (eps back to 1)
     joint_cap: int = 0                   # >0: stop joint training this many periods after entry, measure, flag
+    explore_turns: bool = False          # test M3 (Lambin): traders take turns exploring, never simultaneously
 
     def __post_init__(self) -> None:
         if self.base.parameters.num_speculators != 2:
@@ -102,6 +103,8 @@ class EntryCell:
             d["entry"]["reset_incumbent_at_entry"] = True
         if self.joint_cap:
             d["entry"]["joint_cap"] = self.joint_cap
+        if self.explore_turns:
+            d["entry"]["explore_turns"] = True
         return d
 
     def key(self) -> str:
@@ -166,6 +169,7 @@ class EntrySession(base_session.Session):
             p.learning_rate, p.discount_factor, p.exploration_decay, self.entry_cell.exploration_floor,
             p.pricing_error_weight, p.investor_slope, p.value_mean, p.market_maker_window,
             n, p.convergence_periods, self.entry_period, require_all_active, self.entry_cell.lagged_price,
+            self.entry_cell.explore_turns,
         )
 
     def _enter_now(self, *, capped: bool) -> None:

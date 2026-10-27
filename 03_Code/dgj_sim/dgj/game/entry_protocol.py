@@ -15,6 +15,7 @@ Convergence streak: reset when an ACTIVE agent's greedy policy changes. The kern
 when the streak reaches ``streak_target`` and either every agent is active or
 ``require_all_active`` is False (used for the lone-incumbent phase of stage 3).
 ``use_lagged_price=False`` fixes the price index at 0 (diagnostic T2, as Dou's negative control).
+``explore_turns=True``: only trader (t mod I) may explore in period t, with probability min(1, I*eps) (test M3).
 """
 
 import numpy as np
@@ -34,7 +35,7 @@ def run_periods_entry(
     value_draws, noise_draws, mode_draws, action_draws,
     learning_rate, discount_factor, exploration_decay, exploration_floor,
     pricing_error_weight, investor_slope, value_mean, window,
-    n_periods, streak_target, entry_period, require_all_active, use_lagged_price,
+    n_periods, streak_target, entry_period, require_all_active, use_lagged_price, explore_turns,
 ):
     """Run up to n_periods of training; returns (periods_run, converged)."""
     I = Q.shape[0]
@@ -64,6 +65,14 @@ def run_periods_entry(
                 eps = q_learning.exploration_rate(visits[i, v_cur], exploration_decay)
                 if eps < exploration_floor:
                     eps = exploration_floor
+                if explore_turns:
+                    # Lambin test (M3): only one trader may explore in a period (turns by period
+                    # index); its probability is scaled by I so each trader's expected
+                    # exploration is unchanged. / 轮流探索：每期只有一人可探索，概率乘 I。
+                    if t % I == i:
+                        eps = min(1.0, I * eps)
+                    else:
+                        eps = 0.0
                 acts[i] = q_learning.choose_action(policy[i, s], eps, mode_draws[i, k], action_draws[i, k], n_x)
         for i in range(I):
             if active[i]:

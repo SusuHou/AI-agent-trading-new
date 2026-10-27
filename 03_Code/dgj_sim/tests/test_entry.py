@@ -248,5 +248,49 @@ class TestAlignedFineMenu(unittest.TestCase):
             self.assertEqual(len(r["multipliers"]), 43)
 
 
+
+class TestMechanismTests(unittest.TestCase):
+    def test_explore_turns_never_simultaneous(self):
+        from dgj.game import entry_protocol
+        from dgj.game.shocks import Shocks
+        from dgj.players.speculator import policy as pm
+        from dgj.players.speculator.state_space import encode
+        from dgj.players.market_maker.adaptive import C_P_IDX, C_V_LAG, C_V_CUR
+
+        def one_period(turns):
+            cell = EntryCell(base=small_base(exploration_decay=1e-12), exploration_floor=0.0, explore_turns=turns)
+            s = EntrySession(cell, 0, SEED)
+            s.state.Q[:, :, 0] += 1e6                      # greedy action 0 everywhere
+            s.state.policy[...] = pm.initial_policy(s.state.Q)
+            c = s.state.cursor
+            st = encode(int(c[C_P_IDX]), int(c[C_V_LAG]), int(c[C_V_CUR]), 10)
+            q0 = s.state.Q.copy()
+            sh = Shocks(value_index=np.zeros(1, dtype=np.int64), noise=np.zeros(1),
+                        mode=np.zeros((2, 1)), action=np.full((2, 1), 5, dtype=np.int64))
+            entry_protocol.run_periods_entry(*s._entry_args(sh, 1, True))
+            changed = s.state.Q[:, st, :] != q0[:, st, :]
+            return changed
+        both = one_period(False)
+        self.assertTrue(both[0, 5] and both[1, 5])          # both explored action 5
+        turns = one_period(True)                              # period 0: trader 0's turn
+        self.assertTrue(turns[0, 5])
+        self.assertTrue(turns[1, 0] and not turns[1, 5])      # trader 1 played greedy
+
+    def test_explore_turns_key_only_when_on(self):
+        self.assertNotIn("explore_turns", EntryCell(base=small_base()).to_dict()["entry"])
+        self.assertTrue(EntryCell(base=small_base(), explore_turns=True).to_dict()["entry"]["explore_turns"])
+
+    def test_cli_irf_on_entry_session(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            args = ["--out", d, "--session", "0", "--seed", str(SEED), "--entry-period", "0",
+                    "--convergence-periods", "5", "--measurement-periods", "2000", "--floor", "0",
+                    "--beta", "1e-3", "--work-periods", "2000000", "--chunk-size", "1000", "--irf-paths", "50"]
+            self.assertEqual(run_entry_cli.main(args), 0)
+            payload = json.load(open(os.path.join(d, "session_0000.json")))
+            self.assertIn(payload["irf"]["mechanism"], ("price_trigger", "over_pruning", "unclassified"))
+            self.assertEqual(len(payload["irf"]["response_vs_control"]), 2)
+
+
 if __name__ == "__main__":
     unittest.main()
