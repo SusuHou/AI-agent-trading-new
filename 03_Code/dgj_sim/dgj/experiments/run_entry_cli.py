@@ -22,6 +22,8 @@ from dgj.config import ExperimentCell, PaperParameters
 from dgj.game.entry_session import EntryCell, EntrySession
 from dgj.game import irf
 from dgj.metrics import collusion
+from dgj.game import best_response
+from dgj.players.market_maker import adaptive
 
 PAUSE = 75
 _stop = False
@@ -86,6 +88,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--reset-incumbent-at-entry", action="store_true", help="test A: incumbent explores afresh at entry")
     p.add_argument("--joint-cap", type=int, default=0, help="stop joint training this many periods after entry (0 = none)")
     p.add_argument("--explore-turns", action="store_true", help="test M3 (Lambin): traders take turns exploring")
+    p.add_argument("--br-test", action="store_true", help="C2: exact best response of each trader to the other's greedy policy")
     p.add_argument("--irf-paths", type=int, default=0, help="test M1: impulse-response paths after measurement (Dou: 10000)")
     p.add_argument("--convergence-periods", type=int, default=1_000_000)
     p.add_argument("--measurement-periods", type=int, default=100_000)
@@ -162,6 +165,7 @@ def main(argv=None) -> int:
         return PAUSE
 
     fork = irf.take_fork(s) if a.irf_paths > 0 else None    # converged market, before measurement (as run_session_cli)
+    mm_at_convergence = s.state.stats.copy() if a.br_test else None    # frozen pricing rule for the BR test
     rows = s.measure()
     res = collusion.compute(rows, s.grids, 2, s.p.value_mean)
     irf_payload = None
@@ -192,6 +196,14 @@ def main(argv=None) -> int:
     }
     if irf_payload is not None:
         payload["irf"] = irf_payload
+    if a.br_test:
+        _, _, gamma_0, _, lam = adaptive.coefficients(mm_at_convergence, s.p.pricing_error_weight)
+        w = best_response.path_state_weights(rows, s.grids.value_grid, s.grids.price_grid,
+                                             s.p.num_price_points, s.p.value_mean, s.entry_cell.lagged_price)
+        payload["br"] = {"gamma_0": float(gamma_0), "lambda_hat": float(lam),
+                         "agents": [best_response.best_response_test(s.grids, s.state.policy, i, gamma_0, lam,
+                                                                     s.p.noise_std, s.p.discount_factor, w)
+                                    for i in range(2)]}
     _write_json(result_path, payload)
     _write_json(progress_path, {"status": "complete", **s.entry_manifest()})
     if os.path.exists(ckpt_path):
