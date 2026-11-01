@@ -21,6 +21,8 @@ c = json.load(open(os.path.join(d, "cell.json")))["cell"]
 kw = dict(parameters=PaperParameters(**c["parameters"]), label=c["label"], prehistory=c["prehistory"],
           price_mapping=c["price_mapping"], price_grid=c["price_grid"],
           training_tie_rule=c["training_tie_rule"], measurement_tie_rule=c["measurement_tie_rule"])
+if "state_includes_lagged_price" in c:          # negative-control cells record the flag only when off
+    kw["state_includes_lagged_price"] = c["state_includes_lagged_price"]
 per = aggregate(ExperimentCell(**kw), d)["per_session"]
 json.dump({int(r["file"][8:12]): [r["delta_c"], r["converged_at"], r.get("mechanism")] for r in per}, open(out, "w"))
 PY
